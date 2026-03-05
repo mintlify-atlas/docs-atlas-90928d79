@@ -1,0 +1,581 @@
+---
+title: 'Cart Component'
+description: 'Shopping cart implementation with localStorage and WhatsApp integration'
+---
+
+## Overview
+
+The shopping cart is a persistent component that:
+- Stores items in browser localStorage
+- Supports quantity adjustments
+- Integrates with WhatsApp for order submission
+- Handles products with custom measurements
+- Toggles between pickup and delivery modes
+
+## Cart State
+
+Cart items are stored in an ES6 `Map`:
+
+```javascript
+// In-memory cart state
+state.cart = new Map([
+  ["cemento-25", 5],                    // Simple product
+  ["viguetas-tensolite__3.00", 12],     // Product with meter selection
+  ["hierro-8", 20]
+]);
+```
+
+**Why Map?**
+- O(1) lookups and updates
+- Built-in iteration
+- Clean API for additions/deletions
+- Maintains insertion order
+
+## Cart Rendering
+
+### Render Function
+
+```javascript app.js:577-623
+function renderCart(refs, cartMap) {
+  const items = Array.from(cartMap.entries())
+    .map(([cartId, qty]) => {
+      const product = resolveProductByCartId(cartId);
+      if (!product) return null;
+      return { ...product, cartId, qty };
+    })
+    .filter(Boolean);
+
+  if (items.length === 0) {
+    refs.cartItems.innerHTML = '<p class="cart-empty">Todavia no agregaste productos.</p>';
+  } else {
+    refs.cartItems.innerHTML = items
+      .map(
+        (item) => `
+          <article class="cart-item" data-id="${item.cartId}">
+            <div class="cart-item-header">
+              <span>${item.name}</span>
+              <span>${item.qty} ${item.unit}</span>
+            </div>
+            <div class="product-meta">Unidad: ${item.unit}</div>
+            <div class="cart-item-controls">
+              <button class="qty-btn" data-action="decrease" data-id="${item.cartId}" aria-label="Disminuir cantidad">-</button>
+              <span class="qty-value">${item.qty}</span>
+              <button class="qty-btn" data-action="increase" data-id="${item.cartId}" aria-label="Aumentar cantidad">+</button>
+              <button class="btn btn-outline-dark" data-action="remove" data-id="${item.cartId}">Quitar</button>
+            </div>
+          </article>
+        `
+      )
+      .join("");
+  }
+
+  const totalItems = items.reduce((sum, item) => sum + item.qty, 0);
+  refs.cartTotal.textContent = `Pedido (${totalItems})`;
+
+  if (items.length === 0) {
+    refs.cartWhatsapp.classList.add("is-disabled");
+    refs.cartWhatsapp.href = CART_WHATSAPP_BASE_URL;
+  } else {
+    const deliveryMode = getSelectedDeliveryMode(refs.deliveryToggleInput);
+    refs.cartWhatsapp.classList.remove("is-disabled");
+    refs.cartWhatsapp.href = `${CART_WHATSAPP_BASE_URL}?text=${encodeURIComponent(
+      buildWhatsappMessage(items, totalItems, deliveryMode)
+    )}`;
+  }
+}
+```
+
+### Render Steps
+
+<Steps>
+  <Step title="Convert Map to Array">
+    Transform Map entries into product objects:
+    ```javascript
+    const items = Array.from(cartMap.entries())
+      .map(([cartId, qty]) => {
+        const product = resolveProductByCartId(cartId);
+        if (!product) return null;
+        return { ...product, cartId, qty };
+      })
+      .filter(Boolean);
+    ```
+  </Step>
+  
+  <Step title="Render Items or Empty State">
+    Show cart items or empty message
+  </Step>
+  
+  <Step title="Update Total Badge">
+    Calculate and display total item count:
+    ```javascript
+    const totalItems = items.reduce((sum, item) => sum + item.qty, 0);
+    refs.cartTotal.textContent = `Pedido (${totalItems})`;
+    ```
+  </Step>
+  
+  <Step title="Update WhatsApp Link">
+    Enable/disable button and set href with order details
+  </Step>
+</Steps>
+
+### Cart Item HTML Structure
+
+```html
+<article class="cart-item" data-id="cemento-25">
+  <!-- Item header: name and quantity -->
+  <div class="cart-item-header">
+    <span>Cemento x25kg</span>
+    <span>5 Bolsa</span>
+  </div>
+  
+  <!-- Metadata -->
+  <div class="product-meta">Unidad: Bolsa</div>
+  
+  <!-- Quantity controls -->
+  <div class="cart-item-controls">
+    <button class="qty-btn" data-action="decrease" data-id="cemento-25">-</button>
+    <span class="qty-value">5</span>
+    <button class="qty-btn" data-action="increase" data-id="cemento-25">+</button>
+    <button class="btn btn-outline-dark" data-action="remove" data-id="cemento-25">Quitar</button>
+  </div>
+</article>
+```
+
+## Cart Operations
+
+### Add to Cart
+
+```javascript app.js:930-934
+function addToCart(cartMap, productId, qty, meterValue = "") {
+  const cartId = buildCartItemId(productId, meterValue);
+  const currentQty = cartMap.get(cartId) || 0;
+  cartMap.set(cartId, currentQty + qty);
+}
+```
+
+**Process:**
+1. Build composite cart ID (handles meter selections)
+2. Get current quantity (defaults to 0)
+3. Add new quantity to existing
+4. Update Map
+
+**Example:**
+```javascript
+// Adding regular product
+addToCart(state.cart, "cemento-25", 5, "");
+// Cart: Map { "cemento-25" => 5 }
+
+// Adding same product again
+addToCart(state.cart, "cemento-25", 3, "");
+// Cart: Map { "cemento-25" => 8 }
+
+// Adding product with meter selection
+addToCart(state.cart, "viguetas-tensolite", 12, "3.00");
+// Cart: Map { "cemento-25" => 8, "viguetas-tensolite__3.00" => 12 }
+```
+
+### Update Quantity
+
+```javascript app.js:936-946
+function updateCartQty(cartMap, cartId, delta) {
+  const currentQty = cartMap.get(cartId);
+  if (!currentQty) return;
+
+  const nextQty = currentQty + delta;
+  if (nextQty <= 0) {
+    cartMap.delete(cartId);
+  } else {
+    cartMap.set(cartId, nextQty);
+  }
+}
+```
+
+**Delta-based updates:**
+- `delta = 1`: Increase quantity
+- `delta = -1`: Decrease quantity
+- Auto-removes item if quantity reaches 0
+
+### Remove from Cart
+
+```javascript app.js:948-950
+function removeFromCart(cartMap, cartId) {
+  cartMap.delete(cartId);
+}
+```
+
+Simple deletion from Map.
+
+## Event Handlers
+
+### Add from Product List
+
+```javascript app.js:296-314
+refs.productList.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (target.dataset.action !== "add") return;
+
+  const productId = target.dataset.id;
+  if (!productId) return;
+
+  const product = productIndex.get(productId);
+  if (!product) return;
+
+  const card = target.closest(".product-card");
+  const qtyInput = card ? card.querySelector("[data-qty-input]") : null;
+  const meterInput = card ? card.querySelector("[data-meter-select]") : null;
+  const qty = parsePositiveInteger(qtyInput instanceof HTMLInputElement ? qtyInput.value : "1");
+  const selectedMeter = meterInput instanceof HTMLSelectElement ? meterInput.value : "";
+  addToCart(state.cart, productId, qty, selectedMeter);
+  saveCartToStorage(state.cart);
+  renderCart(refs, state.cart);
+});
+```
+
+**Event delegation on product list:**
+1. Click event bubbles up to product list container
+2. Check if target has `data-action="add"`
+3. Extract product ID from `data-id`
+4. Find product card to read quantity input
+5. Read meter selection if present
+6. Add to cart
+7. Save to localStorage
+8. Re-render cart UI
+
+### Cart Item Controls
+
+```javascript app.js:316-330
+refs.cartItems.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+
+  const action = target.dataset.action;
+  const productId = target.dataset.id;
+  if (!action || !productId) return;
+
+  if (action === "increase") updateCartQty(state.cart, productId, 1);
+  if (action === "decrease") updateCartQty(state.cart, productId, -1);
+  if (action === "remove") removeFromCart(state.cart, productId);
+
+  saveCartToStorage(state.cart);
+  renderCart(refs, state.cart);
+});
+```
+
+**Actions:**
+- `data-action="increase"`: +1 quantity
+- `data-action="decrease"`: -1 quantity (auto-removes at 0)
+- `data-action="remove"`: Delete item immediately
+
+## Composite Cart IDs
+
+Products with custom measurements use composite IDs:
+
+### Build Cart ID
+
+```javascript app.js:1245-1249
+function buildCartItemId(productId, meterValue) {
+  const cleanMeter = String(meterValue || "").trim();
+  if (!cleanMeter) return productId;
+  return `${productId}__${cleanMeter}`;
+}
+```
+
+**Examples:**
+```javascript
+buildCartItemId("cemento-25", "")         // "cemento-25"
+buildCartItemId("viguetas-tensolite", "3.00")  // "viguetas-tensolite__3.00"
+```
+
+### Resolve Product by Cart ID
+
+```javascript app.js:1251-1267
+function resolveProductByCartId(cartId) {
+  const direct = productIndex.get(cartId);
+  if (direct) return direct;
+
+  const [baseId, meterValue] = String(cartId || "").split("__");
+  if (!baseId || !meterValue) return null;
+
+  const baseProduct = productIndex.get(baseId);
+  if (!baseProduct || !Array.isArray(baseProduct.meterOptions)) return null;
+  if (!baseProduct.meterOptions.includes(meterValue)) return null;
+
+  return {
+    ...baseProduct,
+    id: cartId,
+    name: `${baseProduct.name} ${meterValue}m`,
+  };
+}
+```
+
+**Resolution Logic:**
+1. Try direct lookup (handles simple products)
+2. Split on `__` separator
+3. Validate base product exists
+4. Verify product has `meterOptions`
+5. Confirm meter value is valid option
+6. Return synthetic product with modified name
+
+**Example:**
+```javascript
+resolveProductByCartId("cemento-25")
+// { id: "cemento-25", name: "Cemento x25kg", unit: "Bolsa" }
+
+resolveProductByCartId("viguetas-tensolite__3.00")
+// { id: "viguetas-tensolite__3.00", name: "Viguetas tensolite 3.00m", unit: "Unidad" }
+```
+
+## Quantity Parsing
+
+```javascript app.js:952-955
+function parsePositiveInteger(rawValue) {
+  const parsed = Number.parseInt(String(rawValue || "").trim(), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+```
+
+**Validation:**
+- Trims whitespace
+- Parses as base-10 integer
+- Checks if finite number
+- Ensures positive (> 0)
+- Defaults to 1 on invalid input
+
+**Examples:**
+```javascript
+parsePositiveInteger("5")      // 5
+parsePositiveInteger("0")      // 1 (default)
+parsePositiveInteger("-3")     // 1 (default)
+parsePositiveInteger("abc")    // 1 (default)
+parsePositiveInteger("  10  ") // 10
+```
+
+## Delivery Mode Toggle
+
+### HTML Structure
+
+```html corralon.html:227-243
+<div class="delivery-switch-wrap">
+  <span class="delivery-switch-title">Modalidad</span>
+  <div class="delivery-switch-control" id="delivery-switch-control" data-mode="retiro">
+    <span class="delivery-switch-label" data-role="retiro">Retiro en el local</span>
+    <label class="delivery-switch" for="delivery-mode-toggle">
+      <input
+        id="delivery-mode-toggle"
+        type="checkbox"
+        aria-label="Cambiar modalidad entre retiro en el local y con envío"
+      />
+      <span class="delivery-switch-track">
+        <span class="delivery-switch-thumb"></span>
+      </span>
+    </label>
+    <span class="delivery-switch-label" data-role="envio">Con envío</span>
+  </div>
+</div>
+```
+
+### Toggle Event Handler
+
+```javascript app.js:343-348
+refs.deliveryToggleInput.addEventListener("change", () => {
+  const deliveryMode = getSelectedDeliveryMode(refs.deliveryToggleInput);
+  setDeliveryModeUi(refs, deliveryMode);
+  saveDeliveryModeToStorage(deliveryMode);
+  renderCart(refs, state.cart);
+});
+```
+
+### Get Delivery Mode
+
+```javascript app.js:966-968
+function getSelectedDeliveryMode(toggleInput) {
+  return toggleInput && toggleInput.checked ? "envio" : "retiro";
+}
+```
+
+**Modes:**
+- Unchecked: `"retiro"` (Pickup)
+- Checked: `"envio"` (Delivery)
+
+### Set UI State
+
+```javascript app.js:970-974
+function setDeliveryModeUi(refs, mode) {
+  const safeMode = mode === "envio" ? "envio" : "retiro";
+  refs.deliveryToggleInput.checked = safeMode === "envio";
+  refs.deliverySwitchControl.dataset.mode = safeMode;
+}
+```
+
+Synchronizes:
+- Checkbox checked state
+- Data attribute for CSS styling
+
+## WhatsApp Integration
+
+### Build Message
+
+```javascript app.js:957-964
+function buildWhatsappMessage(items, totalItems, deliveryMode) {
+  const deliveryText =
+    deliveryMode === "envio" ? "con envio" : "con retiro en el local";
+  const lines = [`Hola quiero averiguar estos productos ${deliveryText}:`];
+  items.forEach((item) => lines.push(`- ${item.name}: ${item.qty} ${item.unit}`));
+  lines.push(`Total de items: ${totalItems}`);
+  return lines.join("\n");
+}
+```
+
+### Example Output
+
+```text
+Hola quiero averiguar estos productos con retiro en el local:
+- Cemento x25kg: 5 Bolsa
+- Hierro del 8: 12 Barra
+- Viguetas tensolite 3.00m: 8 Unidad
+Total de items: 25
+```
+
+### WhatsApp URL Construction
+
+```javascript app.js:618-622
+refs.cartWhatsapp.href = `${CART_WHATSAPP_BASE_URL}?text=${encodeURIComponent(
+  buildWhatsappMessage(items, totalItems, deliveryMode)
+)}`;
+```
+
+**Constants:**
+```javascript app.js:7
+const CART_WHATSAPP_BASE_URL = "https://wa.me/5493815704653";
+```
+
+**Final URL Example:**
+```
+https://wa.me/5493815704653?text=Hola%20quiero%20averiguar%20estos%20productos%20con%20retiro%20en%20el%20local%3A%0A-%20Cemento%20x25kg%3A%205%20Bolsa%0A-%20Hierro%20del%208%3A%2012%20Barra%0ATotal%20de%20items%3A%2017
+```
+
+## CSS Styling
+
+### Cart Panel
+
+```css style.css:1235-1246
+.cart-panel {
+  background: #fff;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  padding: 22px;
+  display: grid;
+  gap: 18px;
+  box-shadow: var(--shadow);
+  height: fit-content;
+  position: sticky;
+  top: 110px;
+}
+```
+
+**Sticky positioning** keeps cart visible while scrolling.
+
+### Cart Item
+
+```css style.css:1281-1287
+.cart-item {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  background: var(--bg);
+}
+```
+
+### Quantity Controls
+
+```css style.css:1302-1310
+.qty-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+```
+
+## localStorage Persistence
+
+See [Data Persistence](/technical/data-persistence) for detailed implementation.
+
+**Quick Reference:**
+
+```javascript
+// Save cart
+saveCartToStorage(state.cart);
+
+// Load cart
+const cart = loadCartFromStorage();
+
+// Save delivery mode
+saveDeliveryModeToStorage("envio");
+
+// Load delivery mode
+const mode = loadDeliveryModeFromStorage();
+```
+
+## Cart Workflow
+
+<Steps>
+  <Step title="User Browses Catalog">
+    Selects category, searches products
+  </Step>
+  
+  <Step title="Add to Cart">
+    - Enters quantity
+    - Selects meters (if applicable)
+    - Clicks "Agregar"
+  </Step>
+  
+  <Step title="Cart Updates">
+    - Item added to Map
+    - Saved to localStorage
+    - Cart UI re-renders
+    - Total updates
+  </Step>
+  
+  <Step title="User Adjusts">
+    - Increase/decrease quantities
+    - Remove unwanted items
+    - Toggle delivery mode
+  </Step>
+  
+  <Step title="Submit Order">
+    - Click WhatsApp button
+    - Opens WhatsApp with pre-filled message
+    - User sends to business
+  </Step>
+</Steps>
+
+## Testing Cart Operations
+
+Test in browser console:
+
+```javascript
+// View current cart
+JSON.parse(localStorage.getItem("exodo_cart_v1"))
+
+// Add test item
+addToCart(state.cart, "cemento-25", 5, "")
+saveCartToStorage(state.cart)
+
+// Clear cart
+localStorage.removeItem("exodo_cart_v1")
+location.reload()
+
+// Test composite IDs
+buildCartItemId("viguetas-tensolite", "3.00")
+// "viguetas-tensolite__3.00"
+
+resolveProductByCartId("viguetas-tensolite__3.00")
+// { id: "viguetas-tensolite__3.00", name: "Viguetas tensolite 3.00m", ... }
+```

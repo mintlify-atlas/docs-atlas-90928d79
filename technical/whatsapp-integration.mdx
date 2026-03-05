@@ -1,0 +1,517 @@
+---
+title: 'WhatsApp Integration'
+description: 'WhatsApp URL scheme integration for orders and inquiries'
+---
+
+## Overview
+
+Éxodo uses WhatsApp's **URL scheme** (`wa.me`) for all customer communications. No WhatsApp Business API or webhook integration - just simple URL links that open WhatsApp with pre-filled messages.
+
+## Why WhatsApp?
+
+<Info>
+  WhatsApp is the dominant communication platform in Argentina and Latin America. Integrating it allows:
+  
+  - Instant customer contact without forms
+  - Real-time conversation for quotes
+  - No email delays or missed inquiries
+  - Familiar interface for users
+  - No backend infrastructure needed
+</Info>
+
+## WhatsApp Phone Numbers
+
+Two separate numbers for different services:
+
+```javascript app.js:7
+const CART_WHATSAPP_BASE_URL = "https://wa.me/5493815704653";
+```
+
+| Service | Phone Number | Used For |
+|---------|--------------|----------|
+| **Corralón** | +54 9 381 570 4653 | Product orders, material quotes |
+| **Construcción** | +54 9 381 250 0312 | Service bookings, project inquiries |
+
+<Note>
+  Phone numbers use E.164 format: `+` country code + area code + number, no spaces or separators.
+</Note>
+
+## URL Scheme Format
+
+### Basic Structure
+
+```
+https://wa.me/{phone}?text={message}
+```
+
+<ParamField path="phone" type="string" required>
+  E.164 formatted phone number (e.g., `5493815704653`)
+</ParamField>
+
+<ParamField path="text" type="string">
+  URL-encoded message to pre-fill in chat
+</ParamField>
+
+### Example URLs
+
+```html
+<!-- Simple inquiry -->
+<a href="https://wa.me/5493815704653?text=Hola%20quiero%20cotizar%20materiales">
+  Cotizar materiales
+</a>
+
+<!-- Product order -->
+<a href="https://wa.me/5493815704653?text=Hola%20quiero%20averiguar%20estos%20productos%3A%0A-%20Cemento%20x25kg%3A%205%20Bolsa">
+  Enviar pedido
+</a>
+
+<!-- Service booking -->
+<a href="https://wa.me/5493812500312?text=Hola%2C%20quiero%20agendar%20limpieza%20de%20obra%20para%20el%20dia%2015%2F03%2F2026.">
+  Confirmar fecha
+</a>
+```
+
+## Cart WhatsApp Integration
+
+### Build Message Function
+
+```javascript app.js:957-964
+function buildWhatsappMessage(items, totalItems, deliveryMode) {
+  const deliveryText =
+    deliveryMode === "envio" ? "con envio" : "con retiro en el local";
+  const lines = [`Hola quiero averiguar estos productos ${deliveryText}:`];
+  items.forEach((item) => lines.push(`- ${item.name}: ${item.qty} ${item.unit}`));
+  lines.push(`Total de items: ${totalItems}`);
+  return lines.join("\n");
+}
+```
+
+### Message Structure
+
+```text
+Hola quiero averiguar estos productos con retiro en el local:
+- Cemento x25kg: 5 Bolsa
+- Hierro del 8: 12 Barra
+- Viguetas tensolite 3.00m: 8 Unidad
+- Arena x4mt: 2 Viaje
+Total de items: 27
+```
+
+**Components:**
+1. **Greeting:** "Hola quiero averiguar estos productos"
+2. **Delivery mode:** "con envio" or "con retiro en el local"
+3. **Product list:** Each item on new line with format `- Name: Qty Unit`
+4. **Total count:** "Total de items: N"
+
+### URL Construction
+
+```javascript app.js:618-622
+refs.cartWhatsapp.href = `${CART_WHATSAPP_BASE_URL}?text=${encodeURIComponent(
+  buildWhatsappMessage(items, totalItems, deliveryMode)
+)}`;
+```
+
+**Encoding:**
+```javascript
+const message = "Hola quiero averiguar estos productos con retiro en el local:\n- Cemento x25kg: 5 Bolsa";
+const encoded = encodeURIComponent(message);
+// "Hola%20quiero%20averiguar%20estos%20productos%20con%20retiro%20en%20el%20local%3A%0A-%20Cemento%20x25kg%3A%205%20Bolsa"
+```
+
+### Cart Button States
+
+```javascript app.js:613-622
+if (items.length === 0) {
+  refs.cartWhatsapp.classList.add("is-disabled");
+  refs.cartWhatsapp.href = CART_WHATSAPP_BASE_URL;
+} else {
+  const deliveryMode = getSelectedDeliveryMode(refs.deliveryToggleInput);
+  refs.cartWhatsapp.classList.remove("is-disabled");
+  refs.cartWhatsapp.href = `${CART_WHATSAPP_BASE_URL}?text=${encodeURIComponent(
+    buildWhatsappMessage(items, totalItems, deliveryMode)
+  )}`;
+}
+```
+
+**States:**
+- **Empty cart:** Disabled, base URL only
+- **With items:** Enabled, full message URL
+
+## Calendar WhatsApp Integration
+
+### Build Booking Message
+
+```javascript app.js:1123-1126
+const message = `Hola, quiero agendar ${state.selectedService} para el dia ${formatDateForWhatsapp(
+  state.selectedDate
+)}.`;
+const url = `https://wa.me/5493812500312?text=${encodeURIComponent(message)}`;
+```
+
+### Service Names
+
+Extracted from trigger button:
+
+```html construccion.html:165-167
+<button
+  data-open-cleaning-calendar
+  data-calendar-service="limpieza de obra"
+>
+```
+
+**Examples:**
+- `"limpieza de obra"`
+- `"plomería"`
+- `"electricidad"`
+- `"limpieza residencial o turística"`
+
+### Date Formatting
+
+```javascript app.js:1220-1223
+function formatDateForWhatsapp(isoDate) {
+  const [year, month, day] = isoDate.split("-");
+  return `${day}/${month}/${year}`;
+}
+```
+
+**Example:**
+```javascript
+formatDateForWhatsapp("2026-03-15") // "15/03/2026"
+```
+
+### Example Messages
+
+```text
+Hola, quiero agendar limpieza de obra para el dia 15/03/2026.
+```
+
+```text
+Hola, quiero agendar plomería para el dia 22/04/2026.
+```
+
+## Static WhatsApp Links
+
+Direct links throughout HTML pages:
+
+### Index Page (Landing)
+
+```html index.html:142-145
+<a
+  class="btn btn-primary"
+  href="https://wa.me/5493812500312?text=Hola%20quiero%20coordinar%20una%20consulta"
+  target="_blank"
+  rel="noopener"
+>
+  Hablar por WhatsApp
+</a>
+```
+
+### Corralón Page
+
+```html corralon.html:60-62
+<a
+  class="btn btn-outline"
+  href="https://wa.me/5493815704653"
+  target="_blank"
+  rel="noopener"
+>
+  WhatsApp directo
+</a>
+```
+
+```html corralon.html:288-290
+<a
+  class="btn btn-primary"
+  href="https://wa.me/5493815704653"
+  target="_blank"
+  rel="noopener"
+>
+  Cotizar por WhatsApp
+</a>
+```
+
+### Construcción Page
+
+```html construccion.html:59-61
+<a
+  class="btn btn-outline"
+  href="https://wa.me/5493812500312"
+  target="_blank"
+  rel="noopener"
+>
+  WhatsApp directo
+</a>
+```
+
+```html construccion.html:85
+<a href="https://wa.me/5493812500312?text=Hola%2C%20quiero%20consultar%20por%20proyectos%20y%20planos" ...>
+```
+
+### Floating WhatsApp Button
+
+Present on all pages:
+
+```html index.html:399-411
+<a
+  class="whatsapp-float"
+  href="https://wa.me/5493812500312?text=Hola%20quiero%20hacer%20una%20consulta"
+  target="_blank"
+  rel="noopener"
+  aria-label="WhatsApp"
+>
+  <svg viewBox="0 0 32 32">
+    <path d="M16 2.5C8.63 2.5..." />
+  </svg>
+</a>
+```
+
+**Sticky positioning:**
+```css style.css:1712-1726
+.whatsapp-float {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  background: #25d366;
+  color: #fff;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+  z-index: 30;
+}
+```
+
+## WhatsApp Icon SVG
+
+Standardized WhatsApp logo used across all links:
+
+```html
+<svg viewBox="0 0 32 32" role="img" aria-hidden="true">
+  <path
+    d="M16 2.5C8.63 2.5 2.6 8.53 2.6 15.9c0 2.63.77 5.08 2.09 7.13L3 29.5l6.68-1.77a13.31 13.31 0 0 0 6.32 1.6h.01c7.37 0 13.4-6.03 13.4-13.4C29.4 8.53 23.37 2.5 16 2.5zm0 24.4h-.01a11.1 11.1 0 0 1-5.66-1.55l-.4-.24-3.97 1.05 1.06-3.87-.26-.41a11.09 11.09 0 1 1 9.24 5.02zm6.48-8.34c-.35-.18-2.08-1.03-2.4-1.15-.32-.12-.56-.18-.8.18-.24.35-.92 1.15-1.12 1.39-.21.24-.41.27-.76.09-.35-.18-1.5-.55-2.85-1.75-1.06-.95-1.78-2.12-1.99-2.48-.21-.35-.02-.54.16-.72.16-.16.35-.42.52-.63.17-.21.24-.35.35-.59.12-.24.06-.45-.03-.63-.09-.18-.8-1.92-1.1-2.63-.29-.7-.58-.6-.8-.61h-.69c-.24 0-.63.09-.97.45-.35.35-1.27 1.24-1.27 3.03s1.3 3.52 1.48 3.76c.18.24 2.56 3.92 6.2 5.5.87.38 1.55.6 2.08.77.87.28 1.66.24 2.28.15.7-.1 2.08-.85 2.37-1.67.29-.82.29-1.53.21-1.67-.09-.14-.32-.21-.67-.39z"
+  />
+</svg>
+```
+
+## URL Encoding Reference
+
+### Common Characters
+
+| Character | Encoded | Usage |
+|-----------|---------|-------|
+| Space | `%20` | Word separator |
+| Newline (`\n`) | `%0A` | Line breaks in messages |
+| Colon (`:`) | `%3A` | "Product: Quantity" |
+| Comma (`,`) | `%2C` | List separators |
+| Hyphen (`-`) | `-` | No encoding needed |
+| Plus (`+`) | `%2B` | Avoid using `+` for space |
+
+### JavaScript Encoding
+
+```javascript
+// Always use encodeURIComponent for message text
+const message = "Hola, quiero consultar por caños PVC 110";
+const encoded = encodeURIComponent(message);
+// "Hola%2C%20quiero%20consultar%20por%20ca%C3%B1os%20PVC%20110"
+
+// For entire URL (if constructing manually)
+const fullUrl = `https://wa.me/5493815704653?text=${encoded}`;
+```
+
+<Warning>
+  **Never use `escape()` or manual encoding** - it doesn't handle Unicode correctly. Always use `encodeURIComponent()`.
+</Warning>
+
+## Link Behavior
+
+### Target Blank
+
+All WhatsApp links open in new tab:
+
+```html
+<a
+  href="https://wa.me/..."
+  target="_blank"
+  rel="noopener"
+>
+```
+
+**Security:**
+- `target="_blank"`: Opens new tab/window
+- `rel="noopener"`: Prevents access to `window.opener` (security best practice)
+
+### Mobile vs Desktop
+
+**Mobile (iOS/Android):**
+- Opens WhatsApp app directly
+- Message pre-filled in chat
+- User just needs to tap "Send"
+
+**Desktop:**
+- Opens WhatsApp Web (web.whatsapp.com)
+- Requires WhatsApp account linked to phone
+- Falls back to app download page if not installed
+
+## Message Templates
+
+Pre-filled message patterns used throughout the site:
+
+### General Inquiry
+
+```javascript
+"Hola quiero hacer una consulta"
+```
+
+### Material Quote
+
+```javascript
+"Hola quiero cotizar materiales"
+```
+
+### Product Order (Cart)
+
+```javascript
+`Hola quiero averiguar estos productos ${deliveryMode}:
+- ${product.name}: ${qty} ${unit}
+...
+Total de items: ${total}`
+```
+
+### Service Inquiry
+
+```javascript
+"Hola, quiero consultar por ${service}"
+// Examples:
+// "Hola, quiero consultar por proyectos y planos"
+// "Hola, quiero consultar por dirección de obra"
+```
+
+### Service Booking
+
+```javascript
+`Hola, quiero agendar ${service} para el dia ${date}.`
+// Example:
+// "Hola, quiero agendar limpieza de obra para el dia 15/03/2026."
+```
+
+### Construction Project
+
+```javascript
+"Hola quiero solicitar un presupuesto de obra"
+```
+
+## Testing WhatsApp Links
+
+### Development Testing
+
+```javascript
+// Test message encoding
+const message = buildWhatsappMessage(items, 10, "retiro");
+console.log(message);
+console.log(encodeURIComponent(message));
+
+// Test URL construction
+const url = `https://wa.me/5493815704653?text=${encodeURIComponent(message)}`;
+console.log(url);
+
+// Test in browser (won't send, just opens)
+window.open(url, "_blank", "noopener");
+```
+
+### Manual Testing
+
+1. Click WhatsApp link in app
+2. Verify correct phone number opens
+3. Check message is pre-filled correctly
+4. Confirm special characters display properly (accents, tildes)
+5. Test on mobile and desktop
+
+### Edge Cases
+
+<AccordionGroup>
+  <Accordion title="WhatsApp Not Installed">
+    User redirected to WhatsApp download page or web.whatsapp.com
+  </Accordion>
+  
+  <Accordion title="Long Messages">
+    WhatsApp supports messages up to 65,536 characters. Cart orders unlikely to exceed this.
+  </Accordion>
+  
+  <Accordion title="Special Characters">
+    `encodeURIComponent()` handles all Unicode properly (Spanish accents, ñ, etc.)
+  </Accordion>
+  
+  <Accordion title="Invalid Phone Numbers">
+    WhatsApp shows error "Phone number shared via url is invalid"
+  </Accordion>
+</AccordionGroup>
+
+## Business Benefits
+
+<CardGroup cols={2}>
+  <Card title="No Backend Required" icon="server">
+    WhatsApp handles message delivery - no email server, SMS gateway, or contact form backend needed.
+  </Card>
+  
+  <Card title="Instant Communication" icon="bolt">
+    Real-time conversation vs. email delays. Higher conversion rates.
+  </Card>
+  
+  <Card title="Mobile-First" icon="mobile">
+    Most customers browse on mobile. WhatsApp is already on their device.
+  </Card>
+  
+  <Card title="Rich Context" icon="list">
+    Pre-filled messages include all order details - no copy/paste needed.
+  </Card>
+</CardGroup>
+
+## Future Enhancements
+
+<Steps>
+  <Step title="WhatsApp Business API">
+    Migrate to official API for automated responses, catalogs, and order management.
+  </Step>
+  
+  <Step title="Click Tracking">
+    Add analytics events when WhatsApp links are clicked:
+    ```javascript
+    element.addEventListener('click', () => {
+      gtag('event', 'whatsapp_click', { category: 'cart' });
+    });
+    ```
+  </Step>
+  
+  <Step title="QR Codes">
+    Generate WhatsApp QR codes for in-store scanning:
+    ```
+    https://wa.me/5493815704653?text=...
+    ```
+  </Step>
+  
+  <Step title="Chatbot Integration">
+    Add automated responses for common questions using WhatsApp Business features.
+  </Step>
+</Steps>
+
+## Best Practices
+
+<Check>
+  **DO:**
+  - Use `encodeURIComponent()` for all message text
+  - Add `target="_blank" rel="noopener"` to all links
+  - Include context in messages (product names, dates, etc.)
+  - Test on both mobile and desktop
+  - Keep messages concise but informative
+</Check>
+
+<Warning>
+  **DON'T:**
+  - Hardcode special characters in URLs
+  - Use `+` for spaces (use `%20`)
+  - Forget to test with Spanish characters (ñ, á, é, etc.)
+  - Send empty or generic messages
+  - Use WhatsApp for sensitive data (credit cards, passwords)
+</Warning>

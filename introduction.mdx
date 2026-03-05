@@ -1,0 +1,93 @@
+---
+title: "Introduction"
+description: "Overview of the Éxodo Corralón & Piedra Angular Construcción platform - a dual-business website combining materials supply and construction services"
+---
+
+## Welcome to Éxodo
+
+Éxodo is a comprehensive platform that integrates two complementary businesses under one unified digital experience:
+
+<CardGroup cols={2}>
+  <Card title="Éxodo Corralón" icon="warehouse">
+    Materials supply with real stock, trusted brands, and coordinated deliveries by project stage
+  </Card>
+  <Card title="Piedra Angular Construcción" icon="building">
+    Professional construction services with planning, quality control, and project tracking
+  </Card>
+</CardGroup>
+
+## What This Platform Does
+
+The platform serves as a digital hub for construction professionals and homeowners in Argentina, specifically serving the El Mollar region (Ruta 355). It provides:
+
+- **Material Browsing & Quoting**: Interactive product catalog with search, filtering, and shopping cart functionality
+- **Construction Service Booking**: Calendar-based appointment system for construction services
+- **WhatsApp Integration**: Direct connection to business owners via WhatsApp for quotes and bookings
+- **Real-Time Business Status**: Live open/closed status indicators for both businesses
+- **Multi-Category Product Management**: Organized catalog covering Hierros, Cementos, Electricidad, Sanitarios, Chapas, and Herramientas
+
+## Who It's For
+
+<AccordionGroup>
+  <Accordion title="Construction Professionals">
+    Contractors, builders, and construction managers who need reliable material supply with coordinated deliveries by project phase to avoid delays and minimize on-site storage issues.
+  </Accordion>
+  
+  <Accordion title="Homeowners & Property Developers">
+    Individuals planning renovations, new builds, or property development who want a single point of contact for both materials and professional construction execution.
+  </Accordion>
+  
+  <Accordion title="Architects & Engineers">
+    Design professionals seeking a trusted partner for material sourcing and construction management with technical advisory and transparent budgeting.
+  </Accordion>
+</AccordionGroup>
+
+## Key Benefits
+
+### Integrated Solution
+No need to coordinate between multiple suppliers and contractors. One team manages materials, logistics, and construction execution.
+
+### Reduced Project Delays
+With synchronized material deliveries and professional scheduling, projects advance without interruptions caused by material shortages or contractor coordination issues.
+
+### Cost Optimization
+Technical advisory helps customers purchase exactly what's needed, avoiding costly surplus or emergency shortages. Transparent, detailed budgets from the start.
+
+### Professional Quality Control
+Construction services include supervision, periodic progress reports, and quality standards enforcement throughout the project lifecycle.
+
+### Real-Time Availability
+The platform provides real-time business hours tracking:
+- **Corralón**: Monday to Friday, 8:30 AM - 6:00 PM
+- **Constructora**: Monday to Friday, 8:30 AM - 9:00 PM
+
+<Note>
+  Business hours are tracked in Argentina/Buenos Aires timezone using the `isBusinessOpen` function in app.js:249-261
+</Note>
+
+## Platform Architecture
+
+The website is built as a static multi-page application with:
+
+- **Three main pages**: index.html (landing), corralon.html (materials), construccion.html (construction)
+- **Vanilla JavaScript**: No framework dependencies, all functionality in app.js
+- **localStorage persistence**: Cart and preferences saved client-side
+- **Responsive design**: Mobile-first CSS with breakpoints for tablet and desktop
+- **WhatsApp-first communication**: All quotes and bookings route through WhatsApp business numbers
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Explore Features" icon="grid" href="/features">
+    Learn about all platform capabilities in detail
+  </Card>
+  <Card title="Business Model" icon="briefcase" href="/business-model">
+    Understand how the two business units work together
+  </Card>
+  <Card title="Product Catalog" icon="box" href="/features/product-catalog">
+    Deep dive into the product management system
+  </Card>
+  <Card title="Booking System" icon="calendar" href="/features/booking-system">
+    See how construction service appointments work
+  </Card>
+</CardGroup>

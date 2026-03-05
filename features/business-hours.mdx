@@ -1,0 +1,525 @@
+---
+title: "Business Hours Tracking"
+description: "Real-time open/closed status display for both business units using timezone-aware calculations"
+---
+
+## Overview
+
+The platform displays real-time open/closed status badges for both Éxodo Corralón and Piedra Angular Constructora. Status is calculated client-side using Argentina timezone and updates on page load.
+
+<Note>
+  Business hours status is **NOT live-updating**. It calculates once when the page loads. Users must refresh to see updated status.
+</Note>
+
+## Business Operating Hours
+
+### Éxodo Corralón (Materials Supply)
+
+**Schedule:** Monday - Friday, 8:30 AM to 6:00 PM
+
+```javascript
+setBusinessStatus("corralon", isBusinessOpen(8, 30, 18, 0));
+```
+
+**Contact:**
+- WhatsApp: +54 9 381 570 4653
+- Location: Ruta 355 El Mollar
+
+<Card title="Corralón Hours" icon="warehouse">
+  **Lunes a viernes · 8:30 a 18:00**
+  
+  Todos los días de todos los meses del año están disponibles.
+  
+  *(All days of all months of the year are available)*
+</Card>
+
+<Warning>
+  The HTML claims "all days of all months" are available (index.html:328), but the JavaScript only marks the business as open Monday-Friday 8:30-18:00. This discrepancy suggests marketing copy doesn't match actual implementation.
+</Warning>
+
+### Piedra Angular Constructora (Construction Services)
+
+**Schedule:** Monday - Friday, 8:30 AM to 9:00 PM
+
+```javascript
+setBusinessStatus("constructora", isBusinessOpen(8, 30, 21, 0));
+```
+
+**Contact:**
+- WhatsApp: +54 9 381 250 0312
+- Location: Ruta 355 El Mollar
+
+<Card title="Constructora Hours" icon="building">
+  **Lunes a viernes · 8:30 a 21:00**
+  
+  Extended evening hours for client consultations after work
+</Card>
+
+**Extended Hours Rationale:**
+Construction clients often need consultations after traditional work hours. The 9 PM closing time accommodates working professionals.
+
+## Status Calculation
+
+### isBusinessOpen Function
+
+Time-based status check (app.js:254-261):
+
+```javascript
+function isBusinessOpen(openHour, openMinute, closeHour, closeMinute) {
+  const now = new Date();
+  const localDate = new Date(
+    now.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" })
+  );
+  const currentMinutes = localDate.getHours() * 60 + localDate.getMinutes();
+  const opening = openHour * 60 + openMinute;
+  const closing = closeHour * 60 + closeMinute;
+  return currentMinutes >= opening && currentMinutes < closing;
+}
+```
+
+**Algorithm:**
+
+<Steps>
+  <Step title="Get Current Time">
+    Fetch system time using `new Date()`
+  </Step>
+  
+  <Step title="Convert to Argentina Time">
+    Use `toLocaleString` with timezone "America/Argentina/Buenos_Aires"
+  </Step>
+  
+  <Step title="Calculate Minutes Since Midnight">
+    Convert current time to total minutes: `hours * 60 + minutes`
+  </Step>
+  
+  <Step title="Calculate Business Window">
+    Convert opening and closing times to total minutes
+  </Step>
+  
+  <Step title="Compare Range">
+    Check if current time falls within business hours (inclusive start, exclusive end)
+  </Step>
+</Steps>
+
+### Timezone Handling
+
+**Argentina Timezone:**
+```javascript
+const localDate = new Date(
+  now.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" })
+);
+```
+
+**Why This Matters:**
+- Server/client may be in different timezones
+- Business hours are Argentina-local times
+- Ensures correct status regardless of user location
+
+**Argentina Time Details:**
+- Timezone: UTC-3 (no DST)
+- Province: Tucumán
+- City: El Mollar
+
+### Edge Cases
+
+**Boundary Times:**
+```javascript
+return currentMinutes >= opening && currentMinutes < closing;
+```
+
+- At 8:30 AM: **OPEN** (inclusive start)
+- At 6:00 PM (Corralón): **CLOSED** (exclusive end)
+- At 8:29 AM: **CLOSED** (before opening)
+- At 6:01 PM (Corralón): **CLOSED** (after closing)
+
+**Weekends:**
+<Warning>
+  The function does NOT check day of week. It only validates time ranges. Weekend handling is not implemented, so the status would show "open" on Saturdays/Sundays during business hours.
+  
+  To fix:
+  ```javascript
+  const dayOfWeek = localDate.getDay(); // 0=Sunday, 6=Saturday
+  if (dayOfWeek === 0 || dayOfWeek === 6) return false;
+  ```
+</Warning>
+
+## UI Status Display
+
+### Status Badges
+
+Badges appear in the showroom section of index.html:320-360:
+
+```html
+<article class="showroom-card showroom-corro">
+  <div class="showroom-header">
+    <div>
+      <strong>Éxodo · Corralón</strong>
+      <div class="muted">Materiales para obra y terminaciones</div>
+    </div>
+    <span class="status-badge" data-status="corralon">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span class="status-text">--</span>
+    </span>
+  </div>
+  <div class="showroom-hours">
+    <span>Horario</span>
+    <strong>Lunes a viernes · 8:30 a 18:00</strong>
+  </div>
+  <!-- WhatsApp contact -->
+</article>
+```
+
+**Badge Components:**
+- **Container**: `.status-badge` with `data-status="corralon|constructora"`
+- **Dot**: Colored circle indicator
+- **Text**: "Abierto ahora" or "Cerrado"
+
+### Initial State
+
+Badges initialize with placeholder text:
+```html
+<span class="status-text">--</span>
+```
+
+This is replaced when JavaScript runs.
+
+### setBusinessStatus Function
+
+Updates badge appearance (app.js:263-277):
+
+```javascript
+function setBusinessStatus(name, open) {
+  const badge = document.querySelector(`[data-status="${name}"]`);
+  if (!badge) return;
+
+  const text = badge.querySelector(".status-text");
+  const statusText = open ? "Abierto ahora" : "Cerrado";
+  if (text) {
+    text.textContent = statusText;
+  } else {
+    badge.textContent = statusText;
+  }
+
+  badge.classList.remove("status-open", "status-closed");
+  badge.classList.add(open ? "status-open" : "status-closed");
+}
+```
+
+**Update Logic:**
+
+<Steps>
+  <Step title="Find Badge">
+    Query DOM for badge with matching `data-status` attribute
+  </Step>
+  
+  <Step title="Update Text">
+    Set text to "Abierto ahora" (Open now) or "Cerrado" (Closed)
+  </Step>
+  
+  <Step title="Apply CSS Class">
+    Add `.status-open` or `.status-closed` for styling
+  </Step>
+  
+  <Step title="Remove Old Class">
+    Clean up previous state class before adding new one
+  </Step>
+</Steps>
+
+### Styling
+
+**Badge Base Styles** (style.css:483-494):
+
+```css
+.status-badge {
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #1f2937;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+```
+
+**Open State** (style.css:504-512):
+
+```css
+.status-open {
+  background: rgba(31, 157, 97, 0.15);
+  color: #13774a;
+}
+
+.status-open .status-dot {
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+}
+```
+
+**Closed State** (style.css:514-522):
+
+```css
+.status-closed {
+  background: rgba(220, 38, 38, 0.15);
+  color: #b91c1c;
+}
+
+.status-closed .status-dot {
+  background: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+```
+
+**Visual Indicators:**
+
+<CardGroup cols={2}>
+  <Card title="Abierto" icon="circle-check" color="#22c55e">
+    - Green dot with glow
+    - Light green background
+    - Dark green text
+    - "Abierto ahora" label
+  </Card>
+  
+  <Card title="Cerrado" icon="circle-xmark" color="#ef4444">
+    - Red dot with glow
+    - Light red background
+    - Dark red text
+    - "Cerrado" label
+  </Card>
+</CardGroup>
+
+## Initialization
+
+### Page Load Sequence
+
+Status calculation happens during app initialization (app.js:125-130):
+
+```javascript
+document.addEventListener("DOMContentLoaded", () => {
+  initBusinessStatus();
+  initCatalogAndCart();
+  initProjectsSlider();
+  initCleaningCalendar();
+});
+```
+
+### initBusinessStatus Function
+
+Called once on page load (app.js:249-252):
+
+```javascript
+function initBusinessStatus() {
+  setBusinessStatus("corralon", isBusinessOpen(8, 30, 18, 0));
+  setBusinessStatus("constructora", isBusinessOpen(8, 30, 21, 0));
+}
+```
+
+**Process:**
+
+<Steps>
+  <Step title="Wait for DOM">
+    DOMContentLoaded event ensures HTML is fully parsed
+  </Step>
+  
+  <Step title="Check Corralón Hours">
+    Calculate if 8:30-18:00 window is active
+  </Step>
+  
+  <Step title="Update Corralón Badge">
+    Apply appropriate styles and text
+  </Step>
+  
+  <Step title="Check Constructora Hours">
+    Calculate if 8:30-21:00 window is active
+  </Step>
+  
+  <Step title="Update Constructora Badge">
+    Apply appropriate styles and text
+  </Step>
+</Steps>
+
+## Limitations & Improvements
+
+### Current Limitations
+
+<AccordionGroup>
+  <Accordion title="No Live Updates">
+    Status only calculates once on page load. If a user leaves the page open, it won't update when business hours change.
+    
+    **Solution:** Use `setInterval` to recalculate every minute:
+    ```javascript
+    function initBusinessStatus() {
+      const update = () => {
+        setBusinessStatus("corralon", isBusinessOpen(8, 30, 18, 0));
+        setBusinessStatus("constructora", isBusinessOpen(8, 30, 21, 0));
+      };
+      update();
+      setInterval(update, 60000); // Every 60 seconds
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="No Weekend Handling">
+    The function doesn't check day of week. It would show "open" on Saturdays/Sundays during business hour times.
+    
+    **Solution:** Add day-of-week validation:
+    ```javascript
+    const dayOfWeek = localDate.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) return false;
+    ```
+  </Accordion>
+  
+  <Accordion title="No Holiday Handling">
+    No awareness of Argentine public holidays (e.g., Christmas, New Year, Independence Day).
+    
+    **Solution:** Maintain holiday list:
+    ```javascript
+    const holidays = new Set(["2026-01-01", "2026-12-25", ...]);
+    if (holidays.has(formatDateIso(localDate))) return false;
+    ```
+  </Accordion>
+  
+  <Accordion title="Hardcoded Hours">
+    Business hours are hardcoded in JavaScript. Changes require code edits.
+    
+    **Solution:** Load from configuration or CMS:
+    ```javascript
+    const businessHours = await fetch('/api/business-hours').then(r => r.json());
+    setBusinessStatus("corralon", isBusinessOpen(...businessHours.corralon));
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Timezone Edge Cases
+
+**DST Transitions:**
+Argentina doesn't observe Daylight Saving Time, so no special handling needed.
+
+**User Timezone:**
+The calculation works correctly regardless of user's timezone:
+- User in USA (UTC-5) views site at 10:00 AM local time
+- Argentina time is 12:00 PM (UTC-3)
+- Corralón shows as "Abierto" (opened at 8:30 AM Argentina time)
+
+**Server-Side Rendering:**
+If this were SSR, timezone calculation would happen on server using:
+```javascript
+const argentinaTime = new Date().toLocaleString('en-US', {
+  timeZone: 'America/Argentina/Buenos_Aires'
+});
+```
+
+## Testing Business Hours
+
+### Manual Testing
+
+To test status changes without waiting:
+
+1. **Modify system clock:**
+   - Set computer time to 8:29 AM Argentina time → Should show "Cerrado"
+   - Set computer time to 8:30 AM Argentina time → Should show "Abierto ahora"
+   - Set computer time to 6:00 PM Argentina time → Should show "Cerrado"
+
+2. **Modify hours temporarily:**
+   ```javascript
+   // In app.js for testing
+   setBusinessStatus("corralon", isBusinessOpen(0, 0, 23, 59)); // Always open
+   ```
+
+3. **Console testing:**
+   ```javascript
+   // In browser console
+   const now = new Date();
+   const argTime = new Date(now.toLocaleString('en-US', 
+     { timeZone: 'America/Argentina/Buenos_Aires' }));
+   console.log('Argentina time:', argTime);
+   console.log('Corralón open?', isBusinessOpen(8, 30, 18, 0));
+   ```
+
+### Automated Testing
+
+**Unit Test Example:**
+```javascript
+describe('isBusinessOpen', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+  
+  test('returns true during business hours', () => {
+    // Mock time to 10:00 AM Argentina
+    const mockDate = new Date('2026-03-15T10:00:00-03:00');
+    jest.setSystemTime(mockDate);
+    
+    expect(isBusinessOpen(8, 30, 18, 0)).toBe(true);
+  });
+  
+  test('returns false before opening', () => {
+    const mockDate = new Date('2026-03-15T08:00:00-03:00');
+    jest.setSystemTime(mockDate);
+    
+    expect(isBusinessOpen(8, 30, 18, 0)).toBe(false);
+  });
+  
+  test('returns false after closing', () => {
+    const mockDate = new Date('2026-03-15T19:00:00-03:00');
+    jest.setSystemTime(mockDate);
+    
+    expect(isBusinessOpen(8, 30, 18, 0)).toBe(false);
+  });
+});
+```
+
+## Implementation Example
+
+Here's a complete implementation with improvements:
+
+```javascript
+function isBusinessOpen(openHour, openMinute, closeHour, closeMinute) {
+  const now = new Date();
+  const localDate = new Date(
+    now.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" })
+  );
+  
+  // Check if weekend
+  const dayOfWeek = localDate.getDay();
+  if (dayOfWeek === 0 || dayOfWeek === 6) return false;
+  
+  // Check if holiday
+  const dateStr = formatDateIso(localDate);
+  const holidays = new Set([
+    "2026-01-01", "2026-03-24", "2026-04-02", "2026-04-03",
+    "2026-05-01", "2026-05-25", "2026-06-20", "2026-07-09",
+    "2026-08-17", "2026-10-12", "2026-12-08", "2026-12-25"
+  ]);
+  if (holidays.has(dateStr)) return false;
+  
+  // Check time range
+  const currentMinutes = localDate.getHours() * 60 + localDate.getMinutes();
+  const opening = openHour * 60 + openMinute;
+  const closing = closeHour * 60 + closeMinute;
+  return currentMinutes >= opening && currentMinutes < closing;
+}
+
+function initBusinessStatus() {
+  const update = () => {
+    setBusinessStatus("corralon", isBusinessOpen(8, 30, 18, 0));
+    setBusinessStatus("constructora", isBusinessOpen(8, 30, 21, 0));
+  };
+  
+  update(); // Initial calculation
+  setInterval(update, 60000); // Update every minute
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Business Model" icon="briefcase" href="/business-model">
+    Learn more about both business units and their operations
+  </Card>
+  <Card title="Platform Features" icon="grid" href="/features">
+    Explore all platform capabilities
+  </Card>
+</CardGroup>

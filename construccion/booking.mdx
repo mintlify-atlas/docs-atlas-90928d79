@@ -1,0 +1,390 @@
+---
+title: "Booking System"
+description: "How to schedule construction services and consultations using the calendar booking system"
+---
+
+# Booking System
+
+Piedra Angular uses an interactive calendar booking system to schedule consultations and construction services.
+
+## What Can Be Booked
+
+The calendar system is available for:
+
+<CardGroup cols={2}>
+  <Card title="Initial Consultations" icon="handshake">
+    First meeting to discuss your project
+  </Card>
+  
+  <Card title="Site Visits" icon="location-dot">
+    On-site assessment and measurements
+  </Card>
+  
+  <Card title="Limpieza de Obra" icon="broom">
+    Post-construction cleaning service
+  </Card>
+  
+  <Card title="Follow-up Inspections" icon="clipboard-check">
+    Warranty work or post-completion reviews
+  </Card>
+</CardGroup>
+
+## How to Book
+
+<Steps>
+  <Step title="Open Calendar Modal">
+    Click any button with the calendar booking trigger:
+    
+    ```html construccion.html:182-184
+    <button class="btn btn-outline-dark service-calendar-btn" 
+            data-open-cleaning-calendar 
+            data-calendar-service="limpieza de obra">
+      Agendar limpieza
+    </button>
+    ```
+    
+    The modal opens with an interactive calendar showing available dates.
+  </Step>
+
+  <Step title="Navigate to Desired Month">
+    Use the navigation arrows to browse months:
+    
+    - **Left arrow** (‹): Previous month
+    - **Right arrow** (›): Next month
+    
+    The month/year label updates as you navigate:
+    
+    ```javascript app.js:1135-1145
+    monthLabelEl.textContent = firstDay.toLocaleDateString("es-AR", {
+      month: "long",
+      year: "numeric",
+    });
+    ```
+    
+    <Info>
+    Months are displayed in Spanish (enero, febrero, marzo, etc.) matching the Argentina locale.
+    </Info>
+  </Step>
+
+  <Step title="Select a Date">
+    Click on an available date (shown in blue):
+    
+    ```javascript app.js:1104-1115
+    grid.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const dayBtn = target.closest("[data-calendar-date]");
+      if (!(dayBtn instanceof HTMLButtonElement)) return;
+      if (dayBtn.disabled) return;
+      
+      const isoDate = dayBtn.dataset.calendarDate || "";
+      if (!isoDate) return;
+      state.selectedDate = isoDate;
+      renderCleaningCalendar(state, monthLabel, grid, confirmBtn, today);
+    });
+    ```
+    
+    The selected date is highlighted with a black outline.
+    
+    <Warning>
+    In the current implementation, ALL dates show as available (blue). The occupied/past date filtering is not active. See Technical Limitations below.
+    </Warning>
+  </Step>
+
+  <Step title="Confirm Booking">
+    Click the "Confirmar [date]" button at the bottom:
+    
+    ```javascript app.js:1117-1132
+    confirmBtn.addEventListener("click", () => {
+      if (!state.selectedDate) {
+        window.alert("Selecciona una fecha para continuar.");
+        return;
+      }
+      
+      const message = `Hola, quiero agendar ${state.selectedService} para el dia ${formatDateForWhatsapp(
+        state.selectedDate
+      )}.`;
+      const url = `https://wa.me/5493812500312?text=${encodeURIComponent(message)}`;
+      window.open(url, "_blank", "noopener");
+      
+      state.selectedDate = "";
+      closeModal();
+    });
+    ```
+    
+    This:
+    1. Opens WhatsApp with a pre-filled message
+    2. Includes the selected date and service type
+    3. Sends to Piedra Angular (+54 9 381 250-0312)
+  </Step>
+
+  <Step title="Complete Booking via WhatsApp">
+    The WhatsApp message format:
+    
+    ```
+    Hola, quiero agendar limpieza de obra para el dia 15/03/2026.
+    ```
+    
+    **What happens next:**
+    1. Piedra Angular staff reviews the request
+    2. Confirms availability for that date
+    3. Provides time slot options
+    4. Requests additional details (location, project size, etc.)
+    5. Confirms final booking
+    
+    <Info>
+    The calendar is for date selection only. Actual booking confirmation happens via WhatsApp conversation.
+    </Info>
+  </Step>
+</Steps>
+
+## Calendar Features
+
+### Date Display
+
+The calendar shows:
+
+```javascript app.js:1147-1180
+for (let day = 1; day <= daysInMonth; day += 1) {
+  const date = new Date(year, month, day);
+  const isoDate = formatDateIso(date);
+  const isPast = false;  // Currently not implemented
+  const isOccupied = false;  // Currently not implemented
+  const isAvailable = true;  // All dates show as available
+  const isSelected = state.selectedDate === isoDate;
+  
+  const classes = [
+    "calendar-day",
+    isPast ? "is-past" : "",
+    isOccupied ? "is-occupied" : "",
+    isAvailable ? "is-available" : "",
+    isSelected ? "is-selected" : "",
+  ].filter(Boolean).join(" ");
+}
+```
+
+**Visual States:**
+
+| State | Color | Clickable | Meaning |
+|-------|-------|-----------|----------|
+| Available | Blue | Yes | Date can be selected |
+| Selected | Blue with black outline | Yes | Currently chosen date |
+| Occupied | Red (not active) | No | Date already booked |
+| Past | Gray (not active) | No | Date has passed |
+
+### Month Navigation
+
+Buttons use:
+
+```javascript app.js:1094-1102
+prevBtn.addEventListener("click", () => {
+  state.viewDate = new Date(state.viewDate.getFullYear(), state.viewDate.getMonth() - 1, 1);
+  renderCleaningCalendar(state, monthLabel, grid, confirmBtn, today);
+});
+
+nextBtn.addEventListener("click", () => {
+  state.viewDate = new Date(state.viewDate.getFullYear(), state.viewDate.getMonth() + 1, 1);
+  renderCleaningCalendar(state, monthLabel, grid, confirmBtn, today);
+});
+```
+
+No limits on how far forward or backward you can navigate.
+
+### Service Type Selection
+
+The service being booked is passed via `data-calendar-service` attribute:
+
+```html construccion.html:182
+data-calendar-service="limpieza de obra"
+```
+
+This appears in the WhatsApp message:
+
+```javascript app.js:1123-1125
+const message = `Hola, quiero agendar ${state.selectedService} para el dia ${formatDateForWhatsapp(
+  state.selectedDate
+)}.`;
+```
+
+### Date Formatting
+
+Dates are formatted for display:
+
+```javascript app.js:1220-1224
+function formatDateForWhatsapp(isoDate) {
+  const [year, month, day] = isoDate.split("-");
+  return `${day}/${month}/${year}`;
+}
+```
+
+**Example:**
+- ISO format: `2026-03-15`
+- WhatsApp format: `15/03/2026`
+
+## Technical Limitations
+
+<Warning>
+The current implementation has important limitations:
+</Warning>
+
+### 1. All Dates Show as Available
+
+The code to mark dates as occupied or past is present but not active:
+
+```javascript app.js:1156-1158
+const isPast = false;  // Should check if date < today
+const isOccupied = false;  // Should check against occupiedDates Set
+const isAvailable = true;  // Should be !isPast && !isOccupied
+```
+
+**Impact**: Users can select any date, including:
+- Dates in the past
+- Dates already booked by other clients
+- Dates when Piedra Angular is closed (weekends, holidays)
+
+**Workaround**: Staff confirms availability via WhatsApp conversation after user submits request.
+
+### 2. No Occupied Dates Data
+
+The default occupied dates array is empty:
+
+```javascript app.js:10
+const CLEANING_DEFAULT_OCCUPIED_DATES = [];
+```
+
+No mechanism exists to populate this with actual bookings.
+
+### 3. Booked Dates Not Shared
+
+```javascript app.js:1063
+const occupiedDates = new Set([...CLEANING_DEFAULT_OCCUPIED_DATES, ...localBookedDates]);
+```
+
+Each user's browser has separate localStorage. One user booking a date doesn't prevent others from selecting the same date.
+
+<Info>
+To fully activate the booking system, you would need:
+1. Backend database to store bookings
+2. API to fetch occupied dates
+3. Logic to mark past dates as disabled
+4. Real-time updates when dates are booked
+</Info>
+
+## Accessibility
+
+### Keyboard Navigation
+
+- **Escape key**: Closes calendar modal
+
+```javascript app.js:1090-1092
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !modal.hidden) closeModal();
+});
+```
+
+### ARIA Labels
+
+Buttons include descriptive labels:
+
+```html app.js (rendered)
+<button type="button" 
+        class="calendar-day" 
+        data-calendar-date="2026-03-15"
+        aria-label="Seleccionar 15 de marzo">
+  15
+</button>
+```
+
+### Screen Reader Support
+
+Calendar structure:
+- Month/year announced via heading
+- Weekday headers for context
+- Each day button individually focusable
+- Selected state communicated via CSS classes read by assistive tech
+
+## Alternative Booking Method
+
+If the calendar doesn't meet your needs, you can book directly via WhatsApp:
+
+<Steps>
+  <Step title="Send WhatsApp Message">
+    Contact Piedra Angular at +54 9 381 250-0312
+  </Step>
+  
+  <Step title="Describe Your Need">
+    Mention:
+    - Service type (consultation, limpieza, inspection)
+    - Preferred dates/times
+    - Project location
+    - Any special requirements
+  </Step>
+  
+  <Step title="Receive Confirmation">
+    Staff responds with available slots and confirms your booking.
+  </Step>
+</Steps>
+
+## Technical Implementation
+
+For developers interested in how the booking system works:
+
+### Calendar State
+
+```javascript app.js:1062-1068
+const state = {
+  viewDate: new Date(today.getFullYear(), today.getMonth(), 1),
+  selectedDate: "",
+  selectedService: "limpieza de obra",
+  localBookedDates,
+  occupiedDates,
+};
+```
+
+<ParamField path="viewDate" type="Date">
+  The month currently displayed in the calendar (always set to 1st of month)
+</ParamField>
+
+<ParamField path="selectedDate" type="string">
+  ISO format date selected by user (e.g., "2026-03-15")
+</ParamField>
+
+<ParamField path="selectedService" type="string">
+  Service being booked (from `data-calendar-service` attribute)
+</ParamField>
+
+<ParamField path="localBookedDates" type="Set<string>">
+  Dates booked by THIS user in THIS browser (stored in localStorage)
+</ParamField>
+<ParamField path="occupiedDates" type="Set<string>">
+  All occupied dates (default + local)
+</ParamField>
+
+### Rendering Process
+
+```javascript app.js:1135-1188
+function renderCleaningCalendar(state, monthLabelEl, gridEl, confirmBtnEl, today) {
+  // Calculate month layout
+  // Generate day cells (including ghost cells for alignment)
+  // Apply state classes (available, selected, occupied, past)
+  // Update confirm button text
+}
+```
+
+See [Calendar Component Technical Reference](/technical/calendar-component) for full implementation details.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Services" icon="list-check" href="/construccion/services">
+    Review all bookable services
+  </Card>
+  
+  <Card title="Calendar Component" icon="code" href="/technical/calendar-component">
+    Technical implementation details
+  </Card>
+  
+  <Card title="WhatsApp Integration" icon="message" href="/technical/whatsapp-integration">
+    How booking confirmations work
+  </Card>
+</CardGroup>

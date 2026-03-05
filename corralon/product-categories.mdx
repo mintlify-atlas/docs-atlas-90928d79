@@ -1,0 +1,250 @@
+---
+title: "Product Categories"
+description: "Complete catalog of construction materials available at Éxodo Corralón"
+---
+
+# Product Categories
+
+Éxodo Corralón organizes its inventory into 6 main categories, with over 80 distinct products available.
+
+## Category Structure
+
+The product catalog is defined in `app.js` as a JavaScript array:
+
+```javascript app.js:12-120
+const productCategories = [
+  {
+    id: "hierros",
+    title: "Hierros",
+    items: [ /* iron/steel products */ ]
+  },
+  {
+    id: "cementos",
+    title: "Cementos",
+    items: [ /* cement, bricks, aggregates */ ]
+  },
+  // ... more categories
+];
+```
+
+## 1. Hierros (Iron & Steel)
+
+**13 products** - Structural reinforcement and metal framing
+
+| Product | Unit | Description |
+|---------|------|-------------|
+| Alambre | Kg | Wire for tying rebar |
+| Hierro del 6 | Barra | 6mm rebar |
+| Hierro del 8 | Barra | 8mm rebar |
+| Hierro del 10 | Barra | 10mm rebar |
+| Hierro del 12 | Barra | 12mm rebar |
+| Malla 4mm 15x15 | Unidad | 4mm wire mesh |
+| Malla 5mm 15x15 | Unidad | 5mm wire mesh |
+| Malla 6mm 15x15 | Unidad | 6mm wire mesh |
+| Perfil C 80 1.6 | Unidad | C-channel 80mm, 1.6mm thick |
+| Perfil C 80 2.0 | Unidad | C-channel 80mm, 2.0mm thick |
+| Perfil C 100 1.6 | Unidad | C-channel 100mm, 1.6mm thick |
+| Perfil C 100 2.0 | Unidad | C-channel 100mm, 2.0mm thick |
+| Perfil C 120 2.0 | Unidad | C-channel 120mm, 2.0mm thick |
+
+<Note>
+Rebar ("hierro") is sold by the bar. Standard lengths are typically 12 meters but confirm with staff.
+</Note>
+
+## 2. Cementos (Cement, Bricks & Aggregates)
+
+**24 products** - Masonry, concrete, and bulk materials
+
+### Cement & Binders
+
+| Product | Unit |
+|---------|------|
+| Cemento x25kg | Bolsa |
+| Plasticor x25kg | Bolsa |
+| Fino Weber x25kg | Bolsa |
+| Pegamento p/ cerámico Weber | Bolsa |
+| Cal hidratada | Bolsa |
+
+### Bricks & Blocks
+
+| Product | Unit | Dimensions |
+|---------|------|------------|
+| Ladrillos 12x18x33 | Unidad | 12cm x 18cm x 33cm |
+| Ladrillos 8x18x33 | Unidad | 8cm x 18cm x 33cm |
+| Ladrillos 18x18x33 | Unidad | 18cm x 18cm x 33cm |
+| Ladrillos comunes | Unidad | Standard |
+| Ladrillos comunes/seleccionados | Unidad | Higher quality |
+| Bovedillas 10mm | Unidad | 10mm hollow blocks |
+| Bovedillas 12mm | Unidad | 12mm hollow blocks |
+
+### Concrete Joists
+
+```javascript app.js:48-73
+{
+  id: "viguetas-tensolite",
+  name: "Viguetas tensolite",
+  unit: "Unidad",
+  meterOptions: [
+    "2.00", "2.20", "2.40", "2.60", "2.80", "3.00",
+    "3.20", "3.40", "3.60", "3.80", "4.00", "4.20",
+    "4.40", "4.60", "4.80", "5.00", "5.20", "5.40", "5.60"
+  ]
+}
+```
+
+<Warning>
+Viguetas (concrete joists) are available in lengths from 2.00m to 5.60m in 20cm increments. Select the exact length needed when adding to cart.
+</Warning>
+
+### Aggregates & Fill
+
+| Product | Unit | Description |
+|---------|------|-------------|
+| Ripio x4mt | Viaje | Gravel - 4 cubic meter truckload |
+| Arena x4mt | Viaje | Sand - 4 cubic meter truckload |
+| Arena x mt | m³ | Sand - per cubic meter |
+| Ripio x mt | m³ | Gravel - per cubic meter |
+| Tierra x4mt | Viaje | Dirt - 4 cubic meter truckload |
+| Relleno x4mt | Viaje | Fill - 4 cubic meter truckload |
+| Granza x mt | m³ | Granite screenings - per cubic meter |
+
+<Info>
+Bulk materials are sold either by the truckload ("viaje" = 4 m³) or per cubic meter ("mt"). Truckload pricing is more economical for large jobs.
+</Info>
+
+## 3. Electricidad (Electrical)
+
+Currently empty - check with staff for electrical supplies.
+
+```javascript app.js:83-87
+{
+  id: "electricidad",
+  title: "Electricidad",
+  items: []
+}
+```
+
+## 4. Sanitarios (Plumbing)
+
+**4 products** - PVC drainage pipes and fittings
+
+| Product | Unit |
+|---------|------|
+| Caño PVC 110 | Unidad |
+| Codo PVC 110 | Unidad |
+| Curva PVC 110 | Unidad |
+| Pegamento p/ PVC | Unidad |
+
+<Note>
+All PVC products are for 110mm drainage pipes. Check with staff for other diameters or pressure pipes.
+</Note>
+
+## 5. Chapas (Metal Roofing)
+
+**8 products** - Corrugated roofing sheets and insulation
+
+### Roofing Sheets
+
+| Product | Profile | Coating |
+|---------|---------|----------|
+| Chapa galvanizada c27 | C27 | Galvanized |
+| Chapa galvanizada c25 | C25 | Galvanized |
+| Chapa cincalum c27 | C27 | Zinc-aluminum |
+| Chapa cincalum c25 | C25 | Zinc-aluminum |
+| Chapa trapezoidal c27 | C27 | Trapezoidal |
+| Chapa trapezoidal c25 | C25 | Trapezoidal |
+
+<Info>
+**c25** and **c27** refer to profile types. c27 has deeper corrugations and is used for longer spans.
+
+**Galvanized** vs **Cincalum**: Cincalum (zinc-aluminum) has better corrosion resistance and longer lifespan.
+</Info>
+
+### Insulation
+
+| Product | Thickness |
+|---------|----------|
+| Aislantes 5mm | 5mm |
+| Aislantes 10mm | 10mm |
+
+## 6. Herramientas (Tools & Hardware)
+
+**2 products** - Nails and fasteners
+
+| Product | Unit |
+|---------|------|
+| Clavos 2 | Kg |
+| Clavos 2 1/2 | Kg |
+
+<Note>
+Nail sizes are in inches: "Clavos 2" = 2-inch nails, "Clavos 2 1/2" = 2.5-inch nails.
+</Note>
+
+## How Categories Are Used
+
+### Category Filtering
+
+When users click a category card, the catalog filters to show only products from that category:
+
+```javascript app.js:635-637
+function applyCategoryFilter(refs, state, filter) {
+  state.activeFilter = filter || null;
+  renderCatalog(refs.productList, state.activeFilter, state.searchQuery);
+}
+```
+
+### Search Across Categories
+
+The search function looks across all categories:
+
+```javascript app.js:477-498
+function renderCatalog(container, categoryId, searchQuery = "") {
+  const normalizedQuery = normalizeText(searchQuery);
+  
+  if (categoryId === "all") {
+    renderAllCatalog(container, normalizedQuery);
+    return;
+  }
+  
+  const category = productCategories.find(item => item.id === categoryId);
+  const filteredItems = category.items.filter((item) =>
+    normalizedQuery ? normalizeText(item.name).includes(normalizedQuery) : true
+  );
+}
+```
+
+## Product Data Structure
+
+Each product has this structure:
+
+<ParamField path="id" type="string" required>
+  Unique identifier (e.g., "cemento-25", "hierro-8")
+</ParamField>
+
+<ParamField path="name" type="string" required>
+  Display name (e.g., "Cemento x25kg")
+</ParamField>
+
+<ParamField path="unit" type="string" required>
+  Unit of measure ("Bolsa", "Unidad", "Kg", "m³", "Viaje")
+</ParamField>
+
+<ParamField path="meterOptions" type="string[]">
+  Optional: Available lengths for products like viguetas
+</ParamField>
+
+<ParamField path="price" type="string">
+  Optional: Price to display (currently not used, shows "Consultar")
+</ParamField>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Ordering Process" icon="cart-shopping" href="/corralon/ordering-process">
+    Learn how to add products to cart and place orders
+  </Card>
+  
+  <Card title="Product Catalog Component" icon="code" href="/technical/product-catalog-component">
+    Technical implementation details
+  </Card>
+</CardGroup>

@@ -1,0 +1,296 @@
+---
+title: 'System Architecture'
+description: 'Overview of the Éxodo platform architecture and file structure'
+---
+
+## Overview
+
+Éxodo is a **pure client-side web application** with no backend infrastructure. All functionality is implemented using vanilla JavaScript, HTML5, and CSS3, with data persistence handled through browser localStorage.
+
+## Architecture Type
+
+**Static Multi-Page Application (MPA)** with shared component logic
+
+- No server-side rendering
+- No API endpoints
+- No database layer
+- Pure client-side state management
+- localStorage for data persistence
+
+## File Structure
+
+### Core Files
+
+```
+project/
+├── index.html           # Landing page (services overview)
+├── corralon.html        # Hardware store catalog
+├── construccion.html    # Construction services
+├── app.js              # All JavaScript logic (1269 lines)
+└── style.css           # Complete styling (1866 lines)
+```
+
+### HTML Pages
+
+<CodeGroup>
+```html index.html
+<!-- Main landing page -->
+- Hero section with parallax
+- Services overview (Corralón & Construcción)
+- Project showcase slider
+- Business hours status badges
+- Google Maps integration
+- WhatsApp contact points
+```
+
+```html corralon.html
+<!-- Hardware store catalog -->
+- Product category navigation
+- Product search with autocomplete
+- Shopping cart with localStorage
+- Delivery mode toggle (pickup/delivery)
+- WhatsApp order integration
+```
+
+```html construccion.html
+<!-- Construction services -->
+- Service cards (plumbing, electrical, etc.)
+- Calendar booking modal
+- WhatsApp consultation links
+- Service scheduling system
+```
+</CodeGroup>
+
+## Application Initialization Flow
+
+The application initializes through a multi-stage process defined in `app.js`:
+
+```javascript app.js:124-130
+// Global initialization
+const productIndex = buildProductIndex(productCategories);
+
+initBaseUi();
+document.addEventListener("DOMContentLoaded", () => {
+  initBusinessStatus();
+  initCatalogAndCart();
+  initProjectsSlider();
+  initCleaningCalendar();
+});
+```
+
+### Initialization Stages
+
+<Steps>
+  <Step title="Immediate Execution">
+    **`initBaseUi()`** runs before DOM loads:
+    - Burger menu setup
+    - Smooth anchor scrolling
+    - Footer year display
+    - Scroll effects and parallax
+    - Intersection Observer for reveal animations
+  </Step>
+
+  <Step title="DOM Ready">
+    Four systems initialize when DOM is ready:
+    
+    **`initBusinessStatus()`** - Updates open/closed badges
+    ```javascript
+    setBusinessStatus("corralon", isBusinessOpen(8, 30, 18, 0));
+    setBusinessStatus("constructora", isBusinessOpen(8, 30, 21, 0));
+    ```
+    
+    **`initCatalogAndCart()`** - Product catalog system
+    
+    **`initProjectsSlider()`** - Project showcase carousel
+    
+    **`initCleaningCalendar()`** - Booking calendar modal
+  </Step>
+</Steps>
+
+## Component Organization
+
+### Base UI Components
+
+```javascript app.js:132-137
+function initBaseUi() {
+  initBurgerMenu();
+  initAnchorScroll();
+  initFooterYear();
+  initScrollEffects();
+}
+```
+
+| Function | Responsibility | Location |
+|----------|---------------|----------|
+| `initBurgerMenu()` | Mobile navigation toggle | app.js:139-145 |
+| `initAnchorScroll()` | Smooth scroll to anchors | app.js:147-171 |
+| `initFooterYear()` | Dynamic copyright year | app.js:173-176 |
+| `initScrollEffects()` | Parallax & reveal animations | app.js:178-208 |
+
+### Scroll Effects System
+
+The platform implements performant scroll effects using `requestAnimationFrame` and `IntersectionObserver`:
+
+```javascript app.js:178-208
+function initScrollEffects() {
+  const nav = document.querySelector(".nav");
+  const hero = document.querySelector(".hero, .page-hero");
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const revealObserver = buildRevealObserver(prefersReducedMotion);
+  registerReveal(document.querySelectorAll("section, h1, h2, h3, h4"), revealObserver, prefersReducedMotion);
+
+  const updateNavState = () => {
+    if (nav) nav.classList.toggle("is-scrolled", window.scrollY > 10);
+  };
+
+  let ticking = false;
+  const updateParallax = () => {
+    if (!hero || prefersReducedMotion) return;
+    const offset = Math.min(window.scrollY * 0.08, 40);
+    hero.style.setProperty("--hero-parallax", `calc(50% + ${offset}px)`);
+    ticking = false;
+  };
+
+  const onScroll = () => {
+    updateNavState();
+    if (ticking || !hero || prefersReducedMotion) return;
+    ticking = true;
+    window.requestAnimationFrame(updateParallax);
+  };
+
+  updateNavState();
+  if (!prefersReducedMotion) updateParallax();
+  window.addEventListener("scroll", onScroll, { passive: true });
+}
+```
+
+**Key Features:**
+- Throttled scroll handling with `requestAnimationFrame`
+- Respects `prefers-reduced-motion` user preference
+- CSS custom properties for parallax effect
+- Passive event listeners for performance
+
+## Business Logic Constants
+
+```javascript app.js:5-10
+const CART_STORAGE_KEY = "exodo_cart_v1";
+const DELIVERY_MODE_STORAGE_KEY = "exodo_delivery_mode_v1";
+const CART_WHATSAPP_BASE_URL = "https://wa.me/5493815704653";
+const MAX_SEARCH_RESULTS = 6;
+const CLEANING_BOOKED_STORAGE_KEY = "exodo_cleaning_booked_v1";
+const CLEANING_DEFAULT_OCCUPIED_DATES = [];
+```
+
+## Product Data Structure
+
+Products are organized in categories with support for custom unit options:
+
+```javascript app.js:12-120
+const productCategories = [
+  {
+    id: "hierros",
+    title: "Hierros",
+    items: [
+      { id: "alambre", name: "Alambre", unit: "Kg" },
+      { id: "hierro-6", name: "Hierro del 6", unit: "Barra" },
+      // ... more items
+    ],
+  },
+  {
+    id: "cementos",
+    title: "Cementos",
+    items: [
+      { id: "cemento-25", name: "Cemento x25kg", unit: "Bolsa" },
+      {
+        id: "viguetas-tensolite",
+        name: "Viguetas tensolite",
+        unit: "Unidad",
+        meterOptions: ["2.00", "2.20", "2.40", ...] // Optional meter lengths
+      },
+      // ... more items
+    ],
+  },
+  // ... more categories
+];
+```
+
+### Product Index
+
+A `Map` is built for O(1) product lookups:
+
+```javascript app.js:122
+const productIndex = buildProductIndex(productCategories);
+
+// Implementation
+function buildProductIndex(categories) {
+  const index = new Map();
+  categories.forEach((category) => {
+    category.items.forEach((item) => index.set(item.id, item));
+  });
+  return index;
+}
+```
+
+## CSS Architecture
+
+The CSS follows a utility-first approach with component-specific styles:
+
+```css style.css:7-25
+:root {
+  --bg: #f7f7f5;
+  --bg-alt: #ffffff;
+  --ink: #0f1419;
+  --ink-muted: #3e454c;
+  --line: #e5e7eb;
+  --accent: #c65b1f;
+  --accent-2: #8d3a0f;
+  --slate: #1f2937;
+  --slate-2: #111827;
+  --sand: #f0ebe3;
+  --success: #1f9d61;
+  --shadow: 0 16px 40px rgba(17, 24, 39, 0.12);
+  --radius: 18px;
+  --radius-sm: 12px;
+  --maxw: 1200px;
+  --text-color: var(--ink);
+  --text-muted: var(--ink-muted);
+}
+```
+
+### Component Naming
+
+- **BEM-inspired**: `.component-element--modifier`
+- **State classes**: `.is-active`, `.is-scrolled`, `.is-disabled`
+- **Data attributes**: `data-action="add"`, `data-filter="hierros"`
+
+## No Build System
+
+<Warning>
+  This is a **vanilla JavaScript** application with no build pipeline:
+  
+  - No TypeScript compilation
+  - No bundling (Webpack, Vite, etc.)
+  - No CSS preprocessing (SASS, LESS)
+  - No package dependencies
+  - Direct browser execution
+</Warning>
+
+## Performance Considerations
+
+1. **Lazy Initialization**: Components only initialize if their DOM elements exist
+2. **Event Delegation**: Single event listeners on parent containers
+3. **Passive Listeners**: Scroll events use `{ passive: true }`
+4. **RAF Throttling**: Animation updates batched with `requestAnimationFrame`
+5. **Intersection Observer**: Progressive reveal animations
+
+## Browser Compatibility
+
+Required features:
+- ES6+ JavaScript (Map, Arrow functions, Template literals)
+- CSS Grid and Flexbox
+- CSS Custom Properties
+- LocalStorage API
+- IntersectionObserver API
+
+**Target**: Modern evergreen browsers (Chrome, Firefox, Safari, Edge)

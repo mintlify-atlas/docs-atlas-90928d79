@@ -1,0 +1,412 @@
+---
+title: 'Data Persistence'
+description: 'localStorage patterns and data management strategies'
+---
+
+## Overview
+
+Éxodo uses **browser localStorage** for all data persistence. There is no backend database or API. Data is stored locally on the user's device and persists across sessions.
+
+## Storage Keys
+
+All storage keys follow a versioned naming convention:
+
+```javascript app.js:5-9
+const CART_STORAGE_KEY = "exodo_cart_v1";
+const DELIVERY_MODE_STORAGE_KEY = "exodo_delivery_mode_v1";
+const CLEANING_BOOKED_STORAGE_KEY = "exodo_cleaning_booked_v1";
+```
+
+### Key Naming Strategy
+
+| Key | Purpose | Data Type | Version |
+|-----|---------|-----------|----------|
+| `exodo_cart_v1` | Shopping cart items | Array of objects | v1 |
+| `exodo_delivery_mode_v1` | Delivery preference | String ("envio" or "retiro") | v1 |
+| `exodo_cleaning_booked_v1` | Booked cleaning dates | Array of ISO date strings | v1 |
+
+<Note>
+  The `_v1` suffix enables future schema migrations. If data structure changes, increment to `_v2` and implement migration logic.
+</Note>
+
+## Cart Persistence
+
+### Data Structure
+
+Cart items are stored as an array of objects:
+
+```json
+[
+  {
+    "id": "cemento-25",
+    "nombre": "Cemento x25kg",
+    "cantidad": 5
+  },
+  {
+    "id": "viguetas-tensolite__3.00",
+    "nombre": "Viguetas tensolite 3.00m",
+    "cantidad": 12
+  }
+]
+```
+
+<Info>
+  Items with custom measurements (like "viguetas-tensolite") use a composite ID pattern: `{productId}__{meterValue}`
+</Info>
+
+### Save Cart Function
+
+```javascript app.js:1018-1035
+function saveCartToStorage(cartMap) {
+  try {
+    const serializable = Array.from(cartMap.entries())
+      .map(([id, qty]) => {
+        const product = resolveProductByCartId(id);
+        if (!product) return null;
+        return {
+          id,
+          nombre: product.name,
+          cantidad: qty,
+        };
+      })
+      .filter(Boolean);
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(serializable));
+  } catch (_error) {
+    // localStorage can fail in private mode or blocked contexts.
+  }
+}
+```
+
+**Key Features:**
+- Converts `Map` to serializable array
+- Filters out invalid products
+- Gracefully handles localStorage failures
+- Uses Spanish keys for WhatsApp message compatibility
+
+### Load Cart Function
+
+```javascript app.js:994-1016
+function loadCartFromStorage() {
+  const cartMap = new Map();
+
+  try {
+    const raw = localStorage.getItem(CART_STORAGE_KEY);
+    if (!raw) return cartMap;
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return cartMap;
+
+    parsed.forEach((entry) => {
+      if (!entry || typeof entry !== "object") return;
+      const id = typeof entry.id === "string" ? entry.id : "";
+      const qty = parsePositiveInteger(entry.cantidad ?? entry.qty);
+      if (!id || !resolveProductByCartId(id)) return;
+      cartMap.set(id, qty);
+    });
+  } catch (_error) {
+    return cartMap;
+  }
+
+  return cartMap;
+}
+```
+
+**Validation Steps:**
+1. Check if data exists
+2. Parse JSON with error handling
+3. Validate array structure
+4. Validate each item schema
+5. Verify product still exists in catalog
+6. Parse quantities as positive integers
+
+### Cart Operations
+
+All cart mutations immediately trigger a save:
+
+```javascript app.js:298-314
+refs.productList.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (target.dataset.action !== "add") return;
+
+  const productId = target.dataset.id;
+  if (!productId) return;
+
+  const product = productIndex.get(productId);
+  if (!product) return;
+
+  const card = target.closest(".product-card");
+  const qtyInput = card ? card.querySelector("[data-qty-input]") : null;
+  const meterInput = card ? card.querySelector("[data-meter-select]") : null;
+  const qty = parsePositiveInteger(qtyInput instanceof HTMLInputElement ? qtyInput.value : "1");
+  const selectedMeter = meterInput instanceof HTMLSelectElement ? meterInput.value : "";
+  addToCart(state.cart, productId, qty, selectedMeter);
+  saveCartToStorage(state.cart);  // ← Immediate save
+  renderCart(refs, state.cart);
+});
+```
+
+<CodeGroup>
+```javascript addToCart
+function addToCart(cartMap, productId, qty, meterValue = "") {
+  const cartId = buildCartItemId(productId, meterValue);
+  const currentQty = cartMap.get(cartId) || 0;
+  cartMap.set(cartId, currentQty + qty);
+}
+```
+
+```javascript updateCartQty
+function updateCartQty(cartMap, cartId, delta) {
+  const currentQty = cartMap.get(cartId);
+  if (!currentQty) return;
+
+  const nextQty = currentQty + delta;
+  if (nextQty <= 0) {
+    cartMap.delete(cartId);
+  } else {
+    cartMap.set(cartId, nextQty);
+  }
+}
+```
+
+```javascript removeFromCart
+function removeFromCart(cartMap, cartId) {
+  cartMap.delete(cartId);
+}
+```
+</CodeGroup>
+
+## Delivery Mode Persistence
+
+### Save Delivery Mode
+
+```javascript app.js:985-992
+function saveDeliveryModeToStorage(mode) {
+  const safeMode = mode === "envio" ? "envio" : "retiro";
+  try {
+    localStorage.setItem(DELIVERY_MODE_STORAGE_KEY, safeMode);
+  } catch (_error) {
+    // localStorage can fail in private mode or blocked contexts.
+  }
+}
+```
+
+### Load Delivery Mode
+
+```javascript app.js:976-983
+function loadDeliveryModeFromStorage() {
+  try {
+    const raw = localStorage.getItem(DELIVERY_MODE_STORAGE_KEY);
+    return raw === "envio" ? "envio" : "retiro";
+  } catch (_error) {
+    return "retiro";
+  }
+}
+```
+
+**Default Behavior:**
+- Defaults to `"retiro"` (pickup) if no preference saved
+- Validates input to prevent invalid states
+- Returns safe default on any error
+
+### UI Synchronization
+
+```javascript app.js:970-974
+function setDeliveryModeUi(refs, mode) {
+  const safeMode = mode === "envio" ? "envio" : "retiro";
+  refs.deliveryToggleInput.checked = safeMode === "envio";
+  refs.deliverySwitchControl.dataset.mode = safeMode;
+}
+```
+
+The toggle input state and data attribute are synchronized on:
+- Initial page load
+- User interaction
+- localStorage load
+
+## Cleaning Calendar Bookings
+
+### Data Structure
+
+Booked dates stored as ISO date strings:
+
+```json
+[
+  "2026-03-15",
+  "2026-03-22",
+  "2026-04-03"
+]
+```
+
+### Load Bookings
+
+```javascript app.js:1190-1199
+function loadCleaningBookedFromStorage() {
+  try {
+    const raw = localStorage.getItem(CLEANING_BOOKED_STORAGE_KEY);
+    const parsed = JSON.parse(raw || "[]");
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(String(item))));
+  } catch (_error) {
+    return new Set();
+  }
+}
+```
+
+**Validation:**
+- Returns `Set` for O(1) date lookups
+- Validates ISO date format with regex: `/^\d{4}-\d{2}-\d{2}$/`
+- Filters out malformed dates
+- Returns empty Set on error
+
+### Save Bookings
+
+```javascript app.js:1201-1207
+function saveCleaningBookedToStorage(dateSet) {
+  try {
+    localStorage.setItem(CLEANING_BOOKED_STORAGE_KEY, JSON.stringify(Array.from(dateSet)));
+  } catch (_error) {
+    // localStorage can fail in private mode or blocked contexts.
+  }
+}
+```
+
+## Error Handling Strategy
+
+<Warning>
+  **All localStorage operations are wrapped in try-catch blocks** because localStorage can fail in several scenarios:
+</Warning>
+
+### Common Failure Cases
+
+| Scenario | Cause | Handling |
+|----------|-------|----------|
+| **Private browsing** | Safari/Firefox disable localStorage | Silently fail, return defaults |
+| **Quota exceeded** | Storage limit reached (usually 5-10MB) | Fail gracefully, no error shown |
+| **SecurityError** | Cross-origin restrictions | Return empty/default state |
+| **Incognito mode** | Chrome disables persistence | Use in-memory fallback |
+
+### Consistent Error Pattern
+
+Every storage function follows this pattern:
+
+```javascript
+function someStorageOperation() {
+  try {
+    // localStorage operation
+  } catch (_error) {
+    // Silent failure - return safe default
+    return defaultValue;
+  }
+}
+```
+
+<Note>
+  Errors are intentionally suppressed (not logged) to avoid console noise for expected failures in private browsing.
+</Note>
+
+## Composite Cart IDs
+
+Products with custom measurements use composite IDs:
+
+```javascript app.js:1245-1249
+function buildCartItemId(productId, meterValue) {
+  const cleanMeter = String(meterValue || "").trim();
+  if (!cleanMeter) return productId;
+  return `${productId}__${cleanMeter}`;
+}
+```
+
+### Resolution Logic
+
+```javascript app.js:1251-1267
+function resolveProductByCartId(cartId) {
+  const direct = productIndex.get(cartId);
+  if (direct) return direct;
+
+  const [baseId, meterValue] = String(cartId || "").split("__");
+  if (!baseId || !meterValue) return null;
+
+  const baseProduct = productIndex.get(baseId);
+  if (!baseProduct || !Array.isArray(baseProduct.meterOptions)) return null;
+  if (!baseProduct.meterOptions.includes(meterValue)) return null;
+
+  return {
+    ...baseProduct,
+    id: cartId,
+    name: `${baseProduct.name} ${meterValue}m`,
+  };
+}
+```
+
+**Resolution Process:**
+1. Check for direct product match
+2. Split on `__` separator
+3. Validate base product exists
+4. Verify product has `meterOptions` array
+5. Confirm selected meter is valid option
+6. Return synthetic product with modified name
+
+### Example Usage
+
+```javascript
+// Simple product
+addToCart(cartMap, "cemento-25", 5, "");
+// → Cart ID: "cemento-25"
+
+// Product with meter selection
+addToCart(cartMap, "viguetas-tensolite", 12, "3.00");
+// → Cart ID: "viguetas-tensolite__3.00"
+// → Display name: "Viguetas tensolite 3.00m"
+```
+
+## Data Migration Strategy
+
+<Tip>
+  When schema changes are needed:
+  
+  1. Increment version suffix: `exodo_cart_v2`
+  2. Load old key, transform data, save to new key
+  3. Keep old key for fallback/rollback
+  4. Delete old key after 30 days
+</Tip>
+
+Example migration function:
+
+```javascript
+function migrateCartToV2() {
+  const oldData = localStorage.getItem("exodo_cart_v1");
+  if (!oldData) return;
+  
+  try {
+    const parsed = JSON.parse(oldData);
+    const transformed = parsed.map(item => ({
+      ...item,
+      newField: "defaultValue" // New schema field
+    }));
+    localStorage.setItem("exodo_cart_v2", JSON.stringify(transformed));
+  } catch (error) {
+    console.error("Migration failed:", error);
+  }
+}
+```
+
+## Testing Storage Operations
+
+Test localStorage in browser console:
+
+```javascript
+// View current cart
+JSON.parse(localStorage.getItem("exodo_cart_v1"))
+
+// View delivery mode
+localStorage.getItem("exodo_delivery_mode_v1")
+
+// Clear cart
+localStorage.removeItem("exodo_cart_v1")
+
+// Clear all Éxodo data
+Object.keys(localStorage)
+  .filter(key => key.startsWith("exodo_"))
+  .forEach(key => localStorage.removeItem(key))
+```

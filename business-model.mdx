@@ -1,0 +1,357 @@
+---
+title: "Business Model"
+description: "Understanding the dual-business structure of Éxodo Corralón and Piedra Angular Construcción"
+---
+
+## Dual Business Structure
+
+Éxodo operates as an integrated construction ecosystem with two distinct but complementary business units:
+
+<CardGroup cols={2}>
+  <Card title="Éxodo Corralón" icon="warehouse" color="#c65b1f">
+    **Materials Supply Business**
+    
+    Stock management, logistics, and material advisory for construction projects
+  </Card>
+  
+  <Card title="Piedra Angular Construcción" icon="building" color="#111827">
+    **Construction Services Business**
+    
+    Project execution, technical teams, and professional construction management
+  </Card>
+</CardGroup>
+
+## Business Unit Details
+
+### Éxodo Corralón (Materials Supply)
+
+#### Service Offering
+
+The corralón business focuses on providing construction materials with professional support:
+
+- **Permanent Stock**: Structural materials and finishes always available
+- **Trusted Brands**: Curated selection of reliable manufacturers
+- **Own Logistics**: Company-owned delivery vehicles for scheduled deliveries
+- **Phase-Based Delivery**: Materials delivered according to construction stage to minimize on-site storage
+- **Cost Optimization Advisory**: Technical guidance to purchase exactly what's needed
+
+#### Product Categories
+
+```javascript
+const productCategories = [
+  { id: "hierros", title: "Hierros", items: [/* 13 products */] },
+  { id: "cementos", title: "Cementos", items: [/* 22 products */] },
+  { id: "electricidad", title: "Electricidad", items: [] },
+  { id: "sanitarios", title: "Sanitarios", items: [/* 4 products */] },
+  { id: "chapas", title: "Chapas", items: [/* 8 products */] },
+  { id: "herramientas", title: "Herramientas", items: [/* 2 products */] }
+];
+```
+
+<Accordion title="Full Product Catalog">
+**Hierros (Steel):**
+- Alambre (Wire)
+- Hierro del 6, 8, 10, 12 (Steel bars)
+- Malla 4mm, 5mm, 6mm 15x15 (Wire mesh)
+- Perfil C 80/100/120 (C-profiles)
+
+**Cementos (Cement & Aggregates):**
+- Cemento, Plasticor, Fino Weber (Cement types)
+- Pegamento cerámico Weber (Ceramic adhesive)
+- Cal hidratada (Hydrated lime)
+- Ladrillos 12x18x33, 8x18x33, 18x18x33, comunes (Bricks)
+- Bovedillas 10mm, 12mm (Vault blocks)
+- Viguetas tensolite 2.00m - 5.60m (Joists)
+- Ripio, Arena, Tierra, Relleno, Granza (Aggregates)
+
+**Sanitarios (Plumbing):**
+- Caño PVC 110 (PVC pipe)
+- Codo, Curva PVC 110 (Elbows, curves)
+- Pegamento PVC (PVC adhesive)
+
+**Chapas (Roofing):**
+- Chapa galvanizada c27/c25 (Galvanized sheets)
+- Chapa cincalum c27/c25 (Aluzinc sheets)
+- Chapa trapezoidal c27/c25 (Trapezoidal sheets)
+- Aislantes 5mm, 10mm (Insulation)
+
+**Herramientas (Hardware):**
+- Clavos 2, 2 1/2 (Nails)
+</Accordion>
+
+#### Operating Hours
+
+**Schedule:** Monday to Friday, 8:30 AM - 6:00 PM
+
+```javascript
+initBusinessStatus() {
+  setBusinessStatus("corralon", isBusinessOpen(8, 30, 18, 0));
+}
+```
+
+<Note>
+  The source code comment at index.html:328 states "Todos los días de todos los meses del año están disponibles" (All days of all months of the year are available), but this appears to be aspirational marketing copy rather than the actual coded hours.
+</Note>
+
+#### Contact Information
+
+- **WhatsApp**: +54 9 381 570 4653
+- **Primary Use Cases**: Material quotations, delivery coordination, stock inquiries
+
+### Piedra Angular Construcción (Construction Services)
+
+#### Service Offering
+
+The construction business provides professional execution services:
+
+**Main Services:**
+- Proyectos y planos (Project design and blueprints)
+- Dirección de obra (Construction management)
+- Coordinación de gremios (Trade coordination)
+
+**Integral Services:**
+- Plomería (Plumbing installations)
+- Electricidad (Electrical systems)
+- Limpieza de obra (Construction site cleanup)
+- Limpieza residencial y turística (Residential and tourist property cleaning)
+
+#### Value Proposition
+
+From construccion.html:69-71:
+> "Coordinamos equipos y fechas para que cada etapa de obra avance en tiempo y forma."
+> 
+> (We coordinate teams and schedules so each construction stage advances on time and properly.)
+
+**Key Differentiators:**
+- Own technical teams and work crews
+- Professional project planning and scheduling
+- Quality control and progress reporting
+- Integrated material supply from sister company
+
+#### Operating Hours
+
+**Schedule:** Monday to Friday, 8:30 AM - 9:00 PM
+
+```javascript
+initBusinessStatus() {
+  setBusinessStatus("constructora", isBusinessOpen(8, 30, 21, 0));
+}
+```
+
+Extended evening hours accommodate client consultations after traditional work hours.
+
+#### Contact Information
+
+- **WhatsApp**: +54 9 381 250 0312
+- **Primary Use Cases**: Project quotes, construction consultations, service scheduling
+
+## How the Businesses Work Together
+
+### Integration Points
+
+<Steps>
+  <Step title="Single Point of Contact">
+    Clients can engage with one company and get services from both. A construction client automatically has access to preferential material supply.
+  </Step>
+  
+  <Step title="Coordinated Deliveries">
+    Construction project managers coordinate material deliveries from the corralón to arrive exactly when needed for each phase.
+  </Step>
+  
+  <Step title="Technical Advisory">
+    Construction team provides material specifications and quantities to corralón team, ensuring accurate purchases.
+  </Step>
+  
+  <Step title="Unified Budgeting">
+    Clients can receive a single comprehensive budget covering both materials and labor.
+  </Step>
+</Steps>
+
+### Competitive Advantages
+
+From index.html:223-227:
+> "Un solo responsable: Corralón + construcción integrados para una obra sin intermediarios ni descoordinaciones."
+> 
+> (A single point of responsibility: Corralón + construction integrated for a project without intermediaries or coordination issues.)
+
+**Customer Benefits:**
+- Reduced coordination overhead
+- Fewer payment transactions
+- Single accountability for project success
+- Optimized material ordering (no surplus, no shortages)
+- Phase-based delivery reduces on-site storage needs
+
+## Target Customers
+
+### Primary Customer Segments
+
+<CardGroup cols={3}>
+  <Card title="Professional Contractors" icon="hard-hat">
+    Construction companies needing reliable material supply with just-in-time delivery coordination
+  </Card>
+  
+  <Card title="Homeowners" icon="house">
+    Individuals building new homes or doing major renovations who want turnkey project management
+  </Card>
+  
+  <Card title="Property Developers" icon="building">
+    Real estate developers executing multiple simultaneous projects needing consistent material supply and construction quality
+  </Card>
+</CardGroup>
+
+### Customer Statistics
+
+From index.html:76-93:
+```html
+<div class="stat">
+  <strong>+5</strong>
+  <div>Años de experiencia</div>
+</div>
+<div class="stat">
+  <strong>+200</strong>
+  <div>Clientes activos</div>
+</div>
+<div class="stat">
+  <strong>2</strong>
+  <div>Obras ejecutadas</div>
+</div>
+<div class="stat">
+  <strong>98%</strong>
+  <div>Entrega en fecha</div>
+</div>
+```
+
+<Note>
+  The "2 Obras ejecutadas" (2 works executed) metric appears inconsistent with "200+ active clients". This may be a data entry error or represent only featured/major projects rather than total project count.
+</Note>
+
+## Service Area
+
+### Geographic Coverage
+
+**Primary Location:** Ruta 355 El Mollar, Tucumán Province, Argentina
+
+**Service Radius:** From index.html:246-252:
+> "Somos un equipo sólido que integra materiales, dirección de obra y ejecución profesional en una misma estructura de trabajo... Trabajamos junto a maestros mayores de obra, arquitectos, y técnicos especializados en electricidad, plomería y gas."
+>
+> (We are a solid team that integrates materials, construction management, and professional execution in the same work structure... We work alongside master builders, architects, and specialized technicians in electricity, plumbing, and gas.)
+
+The business appears to serve the El Mollar region and surrounding areas within delivery range.
+
+### Facility
+
+**Showroom & Central Office:** Single location housing both business operations
+- Physical address: Ruta 355 El Mollar
+- Combined retail space for material display
+- Office space for construction consultations
+- Warehouse for material storage
+- Parking for delivery vehicles
+
+## Revenue Model
+
+### Revenue Streams
+
+1. **Material Sales** (Corralón)
+   - Retail markup on construction materials
+   - Delivery fees for on-site material transport
+   - Volume discounts for large projects
+
+2. **Construction Services** (Constructora)
+   - Project-based fixed pricing
+   - Time & materials billing for smaller jobs
+   - Service fees for specialized trades (plumbing, electrical)
+   - Recurring revenue from cleaning services
+
+### Pricing Strategy
+
+<Warning>
+  Product prices are not displayed in the catalog. The platform shows "Precio: Consultar" (Price: Inquire) for all items. This is a "quote-based" pricing model where customers request prices via WhatsApp.
+</Warning>
+
+From app.js:556:
+```javascript
+const priceLabel = product.price ? product.price : "Consultar";
+```
+
+**Rationale for Quote-Based Pricing:**
+- Construction material prices fluctuate with market conditions
+- Volume discounts negotiable
+- Bundle pricing when combining materials + construction
+- Competitive pricing requires market research before quoting
+
+## Communication Channels
+
+### WhatsApp-First Strategy
+
+All customer interactions are designed to funnel to WhatsApp:
+
+```javascript
+const CART_WHATSAPP_BASE_URL = "https://wa.me/5493815704653"; // Corralón
+const constructoraWhatsApp = "https://wa.me/5493812500312"; // Construcción
+```
+
+**Why WhatsApp:**
+- Ubiquitous in Argentina (high adoption rate)
+- Rich media sharing (photos, documents, voice messages)
+- Real-time communication
+- No additional software required
+- Personal relationship building
+
+### Customer Journey
+
+<Steps>
+  <Step title="Discovery">
+    Customer arrives via search, referral, or direct navigation to website
+  </Step>
+  
+  <Step title="Exploration">
+    Browse materials catalog or construction services, research capabilities
+  </Step>
+  
+  <Step title="Engagement">
+    Add items to cart OR select service date in calendar
+  </Step>
+  
+  <Step title="Conversion">
+    Click WhatsApp button with pre-filled message containing cart contents or service request
+  </Step>
+  
+  <Step title="Consultation">
+    Direct conversation with business owner via WhatsApp to finalize pricing and logistics
+  </Step>
+  
+  <Step title="Transaction">
+    Purchase/contract execution happens offline after WhatsApp consultation
+  </Step>
+</Steps>
+
+## Business Philosophy
+
+From index.html:246-253:
+> "Nos enfocamos en hacer las cosas bien: planificación clara, procesos ordenados y compromiso real en cada proyecto."
+>
+> (We focus on doing things right: clear planning, orderly processes, and real commitment in each project.)
+
+**Core Values:**
+- Technical quality and professionalism
+- Transparency in budgeting
+- On-time delivery commitments
+- Single point of accountability
+- Continuous evolution ("No competimos. Evolucionamos." - We don't compete. We evolve.)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Product Catalog" icon="box" href="/features/product-catalog">
+    See how the material catalog system works
+  </Card>
+  <Card title="Shopping Cart" icon="shopping-cart" href="/features/shopping-cart">
+    Learn about the cart and WhatsApp integration
+  </Card>
+  <Card title="Booking System" icon="calendar" href="/features/booking-system">
+    Understand construction service scheduling
+  </Card>
+  <Card title="Platform Features" icon="grid" href="/features">
+    Explore all platform capabilities
+  </Card>
+</CardGroup>

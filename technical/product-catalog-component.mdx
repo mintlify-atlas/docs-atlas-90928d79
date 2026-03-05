@@ -1,0 +1,647 @@
+---
+title: 'Product Catalog Component'
+description: 'Product catalog rendering, filtering, and search implementation'
+---
+
+## Overview
+
+The product catalog is the core feature of the Corralón page (`corralon.html`). It enables browsing products by category, searching by name, and adding items to cart.
+
+## Product Data Structure
+
+Products are organized in a hierarchical category structure:
+
+```javascript app.js:12-120
+const productCategories = [
+  {
+    id: "hierros",
+    title: "Hierros",
+    items: [
+      { id: "alambre", name: "Alambre", unit: "Kg" },
+      { id: "hierro-6", name: "Hierro del 6", unit: "Barra" },
+      { id: "hierro-8", name: "Hierro del 8", unit: "Barra" },
+      // ... more items
+    ],
+  },
+  {
+    id: "cementos",
+    title: "Cementos",
+    items: [
+      { id: "cemento-25", name: "Cemento x25kg", unit: "Bolsa" },
+      { id: "plasticor-25", name: "Plasticor x25kg", unit: "Bolsa" },
+      {
+        id: "viguetas-tensolite",
+        name: "Viguetas tensolite",
+        unit: "Unidad",
+        meterOptions: [
+          "2.00", "2.20", "2.40", "2.60", "2.80",
+          "3.00", "3.20", "3.40", "3.60", "3.80",
+          "4.00", "4.20", "4.40", "4.60", "4.80",
+          "5.00", "5.20", "5.40", "5.60"
+        ]
+      },
+      { id: "ripio-4mt", name: "Ripio x4mt", unit: "Viaje" },
+      { id: "arena-4mt", name: "Arena x4mt", unit: "Viaje" },
+      // ... more items
+    ],
+  },
+  {
+    id: "electricidad",
+    title: "Electricidad",
+    items: [],
+  },
+  {
+    id: "sanitarios",
+    title: "Sanitarios",
+    items: [
+      { id: "pvc-110", name: "Caño PVC 110", unit: "Unidad" },
+      { id: "codo-110", name: "Codo PVC 110", unit: "Unidad" },
+      // ... more items
+    ],
+  },
+  {
+    id: "chapas",
+    title: "Chapas",
+    items: [
+      { id: "chapa-galv-c27", name: "Chapa galvanizada c27", unit: "Unidad" },
+      { id: "chapa-cinc-c27", name: "Chapa cincalum c27", unit: "Unidad" },
+      // ... more items
+    ],
+  },
+  {
+    id: "herramientas",
+    title: "Herramientas",
+    items: [
+      { id: "clavos-2", name: "Clavos 2", unit: "Kg" },
+      { id: "clavos-2-1-2", name: "Clavos 2 1/2", unit: "Kg" },
+    ],
+  },
+];
+```
+
+### Product Schema
+
+<ParamField path="id" type="string" required>
+  Unique product identifier (kebab-case)
+</ParamField>
+
+<ParamField path="name" type="string" required>
+  Display name shown in UI
+</ParamField>
+
+<ParamField path="unit" type="string" required>
+  Measurement unit ("Kg", "Barra", "Bolsa", "Unidad", "Viaje", "m3")
+</ParamField>
+
+<ParamField path="meterOptions" type="string[]">
+  Optional: Available lengths in meters (for viguetas, caños, etc.)
+</ParamField>
+
+<ParamField path="price" type="string">
+  Optional: Display price (currently unused - defaults to "Consultar")
+</ParamField>
+
+## Product Index
+
+A global `Map` provides O(1) product lookups:
+
+```javascript app.js:122
+const productIndex = buildProductIndex(productCategories);
+```
+
+### Build Index Function
+
+```javascript app.js:1037-1043
+function buildProductIndex(categories) {
+  const index = new Map();
+  categories.forEach((category) => {
+    category.items.forEach((item) => index.set(item.id, item));
+  });
+  return index;
+}
+```
+
+**Performance:**
+- **Construction:** O(n) where n = total products
+- **Lookup:** O(1) average case
+- **Memory:** ~5-10 KB for 100 products
+
+### Usage Example
+
+```javascript
+const product = productIndex.get("cemento-25");
+// Returns: { id: "cemento-25", name: "Cemento x25kg", unit: "Bolsa" }
+```
+
+## Category Rendering
+
+### Single Category View
+
+```javascript app.js:477-514
+function renderCatalog(container, categoryId, searchQuery = "") {
+  const normalizedQuery = normalizeText(searchQuery);
+
+  if (!categoryId) {
+    container.innerHTML = "";
+    return;
+  }
+
+  if (categoryId === "all") {
+    renderAllCatalog(container, normalizedQuery);
+    return;
+  }
+
+  const category = productCategories.find((item) => item.id === categoryId);
+  if (!category) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const filteredItems = category.items.filter((item) =>
+    normalizedQuery ? normalizeText(item.name).includes(normalizedQuery) : true
+  );
+  const countLabel = normalizedQuery
+    ? `${filteredItems.length} de ${category.items.length} productos`
+    : `${category.items.length} productos`;
+
+  container.innerHTML = `
+    <section class="product-section" data-category="${category.id}" aria-labelledby="cat-${category.id}">
+      <div class="product-section-header">
+        <h3 id="cat-${category.id}" class="product-section-title">${category.title}</h3>
+        <span class="product-section-count">${countLabel}</span>
+      </div>
+      <div class="product-grid">
+        ${filteredItems.map((product) => buildProductCardMarkup(product, category.title)).join("")}
+      </div>
+    </section>
+  `;
+}
+```
+
+**Rendering Logic:**
+1. Normalize search query
+2. Handle empty/null category
+3. Handle "all" category special case
+4. Find category by ID
+5. Filter items by search query
+6. Build product count label
+7. Generate HTML with filtered products
+
+### All Categories View
+
+```javascript app.js:516-543
+function renderAllCatalog(container, normalizedQuery = "") {
+  const sections = productCategories
+    .map((category) => {
+      const items = category.items.filter((item) =>
+        normalizedQuery ? normalizeText(item.name).includes(normalizedQuery) : true
+      );
+      if (!items.length) return "";
+
+      const countLabel = normalizedQuery
+        ? `${items.length} de ${category.items.length} productos`
+        : `${category.items.length} productos`;
+
+      return `
+        <section class="product-section" data-category="${category.id}" aria-labelledby="cat-${category.id}">
+          <div class="product-section-header">
+            <h3 id="cat-${category.id}" class="product-section-title">${category.title}</h3>
+            <span class="product-section-count">${countLabel}</span>
+          </div>
+          <div class="product-grid">
+            ${items.map((product) => buildProductCardMarkup(product, category.title)).join("")}
+          </div>
+        </section>
+      `;
+    })
+    .join("");
+
+  container.innerHTML = sections;
+}
+```
+
+**Differences from single category:**
+- Renders all categories in sequence
+- Skips categories with no matching items
+- Each category gets its own section
+
+## Product Card Markup
+
+```javascript app.js:545-575
+function buildProductCardMarkup(product, categoryTitle) {
+  const meterField = Array.isArray(product.meterOptions)
+    ? `
+          <div class="product-qty-field">
+            <label for="meter-${product.id}">Metros</label>
+            <select id="meter-${product.id}" data-meter-select>
+              ${product.meterOptions.map((meter) => `<option value="${meter}">${meter} m</option>`).join("")}
+            </select>
+          </div>
+        `
+    : "";
+  const priceLabel = product.price ? product.price : "Consultar";
+
+  return `
+        <article class="product-card">
+          <div class="product-pick-label">${categoryTitle || "Producto"}</div>
+          <h4>${product.name}</h4>
+          <div class="product-meta">Categoria: ${categoryTitle || "General"}</div>
+          <div class="product-price">Precio: ${priceLabel}</div>
+          <div class="product-meta">Unidad: ${product.unit}</div>
+          ${meterField}
+          <div class="product-qty-field">
+            <label for="qty-${product.id}">Cantidad</label>
+            <input id="qty-${product.id}" type="number" min="1" step="1" value="1" data-qty-input />
+          </div>
+          <div class="product-actions">
+            <button class="btn btn-outline-dark" data-action="add" data-id="${product.id}">Agregar</button>
+          </div>
+        </article>
+      `;
+}
+```
+
+### Card Structure
+
+```html
+<article class="product-card">
+  <!-- Category badge -->
+  <div class="product-pick-label">Cementos</div>
+  
+  <!-- Product name -->
+  <h4>Cemento x25kg</h4>
+  
+  <!-- Metadata -->
+  <div class="product-meta">Categoria: Cementos</div>
+  <div class="product-price">Precio: Consultar</div>
+  <div class="product-meta">Unidad: Bolsa</div>
+  
+  <!-- Optional: Meter selector (for viguetas, etc.) -->
+  <div class="product-qty-field">
+    <label for="meter-viguetas-tensolite">Metros</label>
+    <select id="meter-viguetas-tensolite" data-meter-select>
+      <option value="2.00">2.00 m</option>
+      <option value="2.20">2.20 m</option>
+      <!-- ... -->
+    </select>
+  </div>
+  
+  <!-- Quantity input -->
+  <div class="product-qty-field">
+    <label for="qty-cemento-25">Cantidad</label>
+    <input id="qty-cemento-25" type="number" min="1" step="1" value="1" data-qty-input />
+  </div>
+  
+  <!-- Add button -->
+  <div class="product-actions">
+    <button class="btn btn-outline-dark" data-action="add" data-id="cemento-25">Agregar</button>
+  </div>
+</article>
+```
+
+## Category Filtering
+
+### Category Navigation HTML
+
+```html corralon.html:74-166
+<div class="category-grid">
+  <a class="category-card" href="#catalogo-activo" data-filter="hierros">
+    <span class="category-icon">
+      <svg viewBox="0 0 24 24">
+        <path d="M4 7h16v10H4zM7 7V5h10v2" />
+      </svg>
+    </span>
+    <span class="category-name">Hierros</span>
+  </a>
+  
+  <a class="category-card" href="#catalogo-activo" data-filter="cementos">
+    <span class="category-icon">
+      <svg viewBox="0 0 24 24">
+        <path d="M7 3h10l2 6-7 12L5 9z" />
+      </svg>
+    </span>
+    <span class="category-name">Cementos</span>
+  </a>
+  
+  <!-- More category cards... -->
+</div>
+```
+
+### Filter Event Handler
+
+```javascript app.js:332-341
+refs.categoryCards.forEach((card) => {
+  card.addEventListener("click", (event) => {
+    event.preventDefault();
+    const filter = card.dataset.filter || null;
+    applyCategoryFilter(refs, state, filter);
+
+    const activeCatalog = document.querySelector("#catalogo-activo");
+    if (activeCatalog) activeCatalog.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+});
+```
+
+### Apply Filter Function
+
+```javascript app.js:625-638
+function applyCategoryFilter(refs, state, filter) {
+  state.activeFilter = filter || null;
+  refs.productSearchInput.value = "";
+  state.searchQuery = "";
+  renderCatalog(refs.productList, state.activeFilter, state.searchQuery);
+  updateProductEmptyState(refs, state.activeFilter, state.searchQuery);
+  syncSearchClearButton(refs);
+  closeSearchDropdown(refs);
+  refs.categoryCards.forEach((card) => {
+    const isSelected = card.dataset.filter === state.activeFilter;
+    card.classList.toggle("is-active", isSelected);
+    card.classList.toggle("active", isSelected);
+  });
+}
+```
+
+**Filter Actions:**
+1. Update `state.activeFilter`
+2. Clear search input and state
+3. Re-render product catalog
+4. Update empty state message
+5. Reset search UI elements
+6. Highlight active category card
+7. Smooth scroll to catalog
+
+## Product Search
+
+### Search Input HTML
+
+```html corralon.html:174-207
+<div class="product-search">
+  <div class="product-search-field">
+    <span class="product-search-icon">
+      <svg viewBox="0 0 24 24">
+        <path d="m21 21-4.35-4.35m1.85-4.65a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" />
+      </svg>
+    </span>
+    <input
+      id="buscador-productos"
+      class="product-search-input"
+      type="search"
+      placeholder="Buscar materiales, herramientas o productos..."
+      autocomplete="off"
+    />
+    <button
+      class="product-search-clear"
+      id="limpiar-buscador-productos"
+      type="button"
+      aria-label="Limpiar búsqueda"
+      hidden
+    >
+      X
+    </button>
+  </div>
+  <div class="search-dropdown" id="sugerencias-productos" hidden></div>
+  <div class="search-feedback" id="feedback-buscador-productos" aria-live="polite"></div>
+</div>
+```
+
+### Search Input Handler
+
+```javascript app.js:350-356
+refs.productSearchInput.addEventListener("input", () => {
+  state.searchQuery = refs.productSearchInput.value.trim();
+  renderCatalog(refs.productList, state.activeFilter, state.searchQuery);
+  updateProductEmptyState(refs, state.activeFilter, state.searchQuery);
+  syncSearchClearButton(refs);
+  renderSearchDropdown(refs, state.searchQuery);
+});
+```
+
+### Text Normalization
+
+Search is accent-insensitive using Unicode normalization:
+
+```javascript app.js:923-928
+function normalizeText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+```
+
+**Examples:**
+```javascript
+normalizeText("Caño PVC")           // "cano pvc"
+normalizeText("Cerámica esmaltada")  // "ceramica esmaltada"
+normalizeText("Hierro del 8")       // "hierro del 8"
+```
+
+### Search Dropdown
+
+```javascript app.js:810-865
+function renderSearchDropdown(refs, rawQuery) {
+  const query = normalizeText(rawQuery);
+  if (!query) {
+    closeSearchDropdown(refs);
+    return;
+  }
+
+  const productMatches = [];
+  productCategories.forEach((category) => {
+    category.items.forEach((item) => {
+      if (!normalizeText(item.name).includes(query)) return;
+      productMatches.push(item);
+    });
+  });
+
+  const categoryMatches = productCategories.filter((category) =>
+    normalizeText(category.title).includes(query)
+  );
+
+  const rows = [];
+  if (productMatches.length) {
+    rows.push('<div class="search-group-label">Productos</div>');
+    productMatches.slice(0, MAX_SEARCH_RESULTS).forEach((item) => {
+      const highlighted = highlightMatch(item.name, rawQuery);
+      rows.push(`
+        <div class="search-item">
+          <div class="search-item-main">
+            <div class="search-item-name">${highlighted}</div>
+          </div>
+          <button class="search-add-btn" type="button" data-search-add="${item.id}">Agregar</button>
+        </div>
+      `);
+    });
+  }
+
+  const freeSlots = Math.max(0, MAX_SEARCH_RESULTS - Math.min(productMatches.length, MAX_SEARCH_RESULTS));
+  if (freeSlots > 0 && categoryMatches.length) {
+    rows.push('<div class="search-group-label">Categorias</div>');
+    categoryMatches.slice(0, freeSlots).forEach((category) => {
+      rows.push(`
+        <button class="search-category-item" type="button" data-search-category="${category.id}">
+          Ver todos los productos de ${category.title}
+        </button>
+      `);
+    });
+  }
+
+  if (!rows.length) {
+    rows.push(
+      '<div class="search-empty">No hay coincidencias para tu busqueda. Proba con otro termino o escribinos por WhatsApp.</div>'
+    );
+  }
+
+  refs.searchDropdown.innerHTML = rows.join("");
+  refs.searchDropdown.hidden = false;
+}
+```
+
+**Dropdown Features:**
+- Shows up to 6 results total
+- Products listed first
+- Categories fill remaining slots
+- Highlights matching text
+- "Add" button for quick cart addition
+- Category links to view all products
+
+### Highlight Matching Text
+
+```javascript app.js:867-875
+function highlightMatch(text, rawQuery) {
+  const safeText = String(text || "");
+  const query = String(rawQuery || "").trim();
+  if (!query) return safeText;
+
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`(${escaped})`, "ig");
+  return safeText.replace(regex, '<mark class="search-highlight">$1</mark>');
+}
+```
+
+**Example:**
+```javascript
+highlightMatch("Cemento x25kg", "cemento")
+// Returns: '<mark class="search-highlight">Cemento</mark> x25kg'
+```
+
+## Empty State Handling
+
+```javascript app.js:891-921
+function updateProductEmptyState(refs, activeCategory, searchQuery) {
+  const normalizedQuery = normalizeText(searchQuery);
+
+  if (!activeCategory) {
+    refs.productEmpty.textContent = "Selecciona una categoria para ver los productos.";
+    refs.productEmpty.hidden = false;
+    return;
+  }
+
+  const category = productCategories.find((item) => item.id === activeCategory);
+  if (!category) {
+    refs.productEmpty.textContent = "No se encontro la categoria seleccionada.";
+    refs.productEmpty.hidden = false;
+    return;
+  }
+
+  const hasMatch = category.items.some((item) =>
+    normalizeText(item.name).includes(normalizedQuery)
+  );
+
+  if (hasMatch) {
+    refs.productEmpty.hidden = true;
+    return;
+  }
+
+  refs.productEmpty.textContent =
+    normalizedQuery.length > 0
+      ? "No encontramos productos para tu busqueda."
+      : "Esta categoria no tiene productos disponibles.";
+  refs.productEmpty.hidden = false;
+}
+```
+
+**Empty States:**
+
+| Condition | Message |
+|-----------|----------|
+| No category selected | "Selecciona una categoria para ver los productos." |
+| Invalid category | "No se encontro la categoria seleccionada." |
+| Search no results | "No encontramos productos para tu busqueda." |
+| Category empty | "Esta categoria no tiene productos disponibles." |
+
+## CSS Styling
+
+### Product Grid
+
+```css style.css:1124-1127
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+}
+```
+
+### Product Card
+
+```css style.css:1129-1144
+.product-card {
+  background: var(--bg-alt);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  padding: 18px;
+  display: grid;
+  gap: 10px;
+  box-shadow: 0 10px 24px rgba(15, 20, 25, 0.08);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  overflow: hidden;
+}
+
+.product-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 18px 36px rgba(15, 20, 25, 0.18);
+}
+```
+
+### Category Grid
+
+```css style.css:1020-1024
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 24px;
+}
+```
+
+**Responsive Breakpoints:**
+
+```css style.css:1224-1233
+@media (max-width: 980px) {
+  .category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .category-grid {
+    grid-template-columns: 1fr;
+  }
+}
+```
+
+## Performance Notes
+
+<Info>
+  **No Debouncing:** Search input is not debounced because:
+  - Filtering is synchronous (< 1ms)
+  - Small dataset (< 100 products)
+  - Immediate feedback feels responsive
+  - No API calls to throttle
+</Info>
+
+**Optimizations:**
+- Product index built once on load
+- Text normalization memoization could be added
+- Virtual scrolling not needed (small catalog)
+- Event delegation on product list

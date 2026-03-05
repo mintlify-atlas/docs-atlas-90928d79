@@ -1,0 +1,501 @@
+---
+title: 'Google Maps Integration'
+description: 'Google Maps embed for location display on contact section'
+---
+
+## Overview
+
+The Éxodo platform uses **Google Maps iframe embed** to display the showroom and office location on the landing page. This is a simple, no-code integration that requires no API key for basic functionality.
+
+## Implementation
+
+### HTML Embed Code
+
+```html index.html:296-311
+<div class="showroom-map">
+  <iframe
+    title="Mapa Showroom y Oficina Central"
+    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2912.891684292582!2d-65.70773952537152!3d-26.94792209467429!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x942225d72b0d9079%3A0xe4c9ad7c7c882e1f!2s%C3%89XODO%20CORRALON!5e1!3m2!1ses-419!2sar!4v1770498857809!5m2!1ses-419!2sar"
+    width="600"
+    height="450"
+    style="border:0;"
+    allowfullscreen=""
+    loading="lazy"
+    referrerpolicy="no-referrer-when-downgrade"
+  ></iframe>
+  <div class="showroom-address">
+    <strong>Ruta 355 El Mollar</strong>
+    <span class="muted">Showroom y Oficina Central</span>
+  </div>
+</div>
+```
+
+### Embed URL Breakdown
+
+```
+https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2912.891684292582!2d-65.70773952537152!3d-26.94792209467429!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x942225d72b0d9079%3A0xe4c9ad7c7c882e1f!2s%C3%89XODO%20CORRALON!5e1!3m2!1ses-419!2sar!4v1770498857809!5m2!1ses-419!2sar
+```
+
+**Key Parameters:**
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| **Coordinates** | `-65.70773952537152, -26.94792209467429` | Longitude, Latitude |
+| **Place ID** | `0x942225d72b0d9079:0xe4c9ad7c7c882e1f` | Unique Google Maps place identifier |
+| **Name** | `%C3%89XODO%20CORRALON` | URL-encoded business name ("ÉXODO CORRALON") |
+| **Zoom** | `4f13.1` | Map zoom level |
+| **Language** | `1ses-419` | Spanish (Latin America) |
+| **Region** | `2sar` | Argentina |
+
+## Location Details
+
+### Business Address
+
+```
+Ruta 355 El Mollar
+Tucumán, Argentina
+```
+
+**Coordinates:**
+- **Latitude:** -26.947922
+- **Longitude:** -65.707739
+
+### Showroom Layout
+
+The contact section displays the map with business details:
+
+```html index.html:295-387
+<div class="showroom-grid">
+  <!-- Map iframe -->
+  <div class="showroom-map">
+    <iframe ...></iframe>
+    <div class="showroom-address">
+      <strong>Ruta 355 El Mollar</strong>
+      <span class="muted">Showroom y Oficina Central</span>
+    </div>
+  </div>
+
+  <!-- Business cards -->
+  <div class="showroom-cards">
+    <article class="showroom-card showroom-corro">
+      <div class="showroom-header">
+        <div>
+          <strong>Éxodo · Corralón</strong>
+          <div class="muted">Materiales para obra y terminaciones</div>
+        </div>
+        <span class="status-badge" data-status="corralon">
+          <span class="status-dot"></span>
+          <span class="status-text">--</span>
+        </span>
+      </div>
+      <div class="showroom-hours">
+        <span>Horario</span>
+        <strong>Lunes a viernes · 8:30 a 18:00</strong>
+      </div>
+      <div class="showroom-contact">
+        <span>WhatsApp</span>
+        <a class="whatsapp-link" href="https://wa.me/5493815704653?text=...">
+          Escribinos por WhatsApp
+        </a>
+      </div>
+    </article>
+
+    <article class="showroom-card showroom-const">
+      <!-- Construction service card -->
+    </article>
+  </div>
+</div>
+```
+
+## Iframe Attributes
+
+### Required Attributes
+
+<ParamField path="src" type="string" required>
+  Google Maps embed URL with encoded location data
+</ParamField>
+
+<ParamField path="width" type="string">
+  Initial width (overridden by CSS) - `"600"`
+</ParamField>
+
+<ParamField path="height" type="string">
+  Initial height (overridden by CSS) - `"450"`
+</ParamField>
+
+### Performance Attributes
+
+<ParamField path="loading" type="lazy">
+  Defers iframe loading until near viewport - improves initial page load
+</ParamField>
+
+<ParamField path="referrerpolicy" type="no-referrer-when-downgrade">
+  Controls referrer information sent to Google
+</ParamField>
+
+### Accessibility Attributes
+
+<ParamField path="title" type="string" required>
+  Screen reader description - "Mapa Showroom y Oficina Central"
+</ParamField>
+
+<ParamField path="allowfullscreen" type="boolean">
+  Enables fullscreen mode in Google Maps
+</ParamField>
+
+## CSS Styling
+
+### Map Container
+
+```css index.html:424-432
+.showroom-map {
+  background: #fff;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+}
+```
+
+### Responsive Sizing
+
+```css index.html:564-568
+@media (max-width: 640px) {
+  .showroom-map iframe {
+    height: 320px;
+  }
+}
+```
+
+**Breakpoint Behavior:**
+- **Desktop/Tablet:** 450px height
+- **Mobile (< 640px):** 320px height
+
+### Grid Layout
+
+```css index.html:416-422
+.showroom-grid {
+  margin-top: 28px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 22px;
+  align-items: stretch;
+}
+```
+
+**Responsive behavior:**
+- Automatically stacks on small screens
+- Map and business cards side-by-side on larger screens
+
+## Address Display
+
+```html index.html:307-310
+<div class="showroom-address">
+  <strong>Ruta 355 El Mollar</strong>
+  <span class="muted">Showroom y Oficina Central</span>
+</div>
+```
+
+```css index.html:434-438
+.showroom-address {
+  padding: 18px 22px 22px;
+  display: grid;
+  gap: 4px;
+}
+```
+
+## Generating Embed URL
+
+To get a Google Maps embed URL:
+
+<Steps>
+  <Step title="Open Google Maps">
+    Navigate to https://maps.google.com
+  </Step>
+  
+  <Step title="Search Location">
+    Enter business address or name: "Ruta 355 El Mollar, Tucumán"
+  </Step>
+  
+  <Step title="Share > Embed Map">
+    Click "Share" button, then "Embed a map" tab
+  </Step>
+  
+  <Step title="Copy HTML">
+    Copy the entire `<iframe>` code provided by Google
+  </Step>
+  
+  <Step title="Paste in HTML">
+    Replace existing iframe in `index.html:297-306`
+  </Step>
+</Steps>
+
+### Customizing Embed
+
+In the Google Maps embed interface:
+
+- **Size:** Select Small, Medium, Large, or Custom dimensions
+- **Zoom:** Adjust map zoom before generating embed
+- **Map Type:** Choose standard, satellite, or terrain view
+
+## Map Features
+
+### Interactive Elements
+
+Users can interact with the embedded map:
+
+- **Zoom:** Scroll wheel or +/- buttons
+- **Pan:** Click and drag
+- **Fullscreen:** Click fullscreen icon (enabled by `allowfullscreen`)
+- **View in Google Maps:** Click business name or "View larger map"
+
+### Disabled Features
+
+The basic embed does **not** include:
+
+- Directions from user's location (requires full Google Maps)
+- Street View integration
+- Place reviews/ratings
+- Custom markers or styling
+
+<Note>
+  For advanced features, consider upgrading to Google Maps JavaScript API with custom implementation.
+</Note>
+
+## Business Hours Status
+
+The showroom section includes dynamic status badges:
+
+```javascript app.js:249-252
+function initBusinessStatus() {
+  setBusinessStatus("corralon", isBusinessOpen(8, 30, 18, 0));
+  setBusinessStatus("constructora", isBusinessOpen(8, 30, 21, 0));
+}
+```
+
+**Status Logic:**
+
+```javascript app.js:254-261
+function isBusinessOpen(openHour, openMinute, closeHour, closeMinute) {
+  const now = new Date();
+  const localDate = new Date(now.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
+  const currentMinutes = localDate.getHours() * 60 + localDate.getMinutes();
+  const opening = openHour * 60 + openMinute;
+  const closing = closeHour * 60 + closeMinute;
+  return currentMinutes >= opening && currentMinutes < closing;
+}
+```
+
+**Business Hours:**
+
+| Service | Hours | Timezone |
+|---------|-------|----------|
+| **Corralón** | 8:30 - 18:00 | America/Argentina/Buenos_Aires |
+| **Construcción** | 8:30 - 21:00 | America/Argentina/Buenos_Aires |
+
+## Performance Optimization
+
+### Lazy Loading
+
+```html
+<iframe loading="lazy" ...>
+```
+
+The `loading="lazy"` attribute defers iframe loading until user scrolls near it:
+
+- **Benefits:** Faster initial page load, saves bandwidth
+- **Browser Support:** Modern browsers (Chrome, Firefox, Safari, Edge)
+- **Fallback:** Older browsers load immediately (no harm)
+
+### Connection Preload
+
+Add to `<head>` for faster map loading:
+
+```html
+<link rel="preconnect" href="https://maps.googleapis.com">
+<link rel="dns-prefetch" href="https://maps.googleapis.com">
+```
+
+<Warning>
+  Currently **not implemented** in the codebase. Adding these would improve map load time.
+</Warning>
+
+## SEO Considerations
+
+### Structured Data
+
+Add LocalBusiness schema for better Google integration:
+
+```html
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "HardwareStore",
+  "name": "Éxodo Corralón",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Ruta 355 El Mollar",
+    "addressLocality": "El Mollar",
+    "addressRegion": "Tucumán",
+    "addressCountry": "AR"
+  },
+  "geo": {
+    "@type": "GeoCoordinates",
+    "latitude": -26.947922,
+    "longitude": -65.707739
+  },
+  "telephone": "+54-381-570-4653",
+  "openingHours": "Mo-Fr 08:30-18:00"
+}
+</script>
+```
+
+<Note>
+  Not currently implemented but recommended for local SEO.
+</Note>
+
+## Accessibility
+
+### Screen Reader Support
+
+```html
+<iframe title="Mapa Showroom y Oficina Central" ...>
+```
+
+The `title` attribute provides context for screen readers.
+
+### Keyboard Navigation
+
+- **Tab:** Focus iframe
+- **Arrow keys:** Pan map (when focused)
+- **+/-:** Zoom in/out
+- **Escape:** Exit fullscreen
+
+### Alternative Navigation
+
+Provide text address below map for users who can't interact with iframe:
+
+```html
+<div class="showroom-address">
+  <strong>Ruta 355 El Mollar</strong>
+  <span class="muted">Showroom y Oficina Central</span>
+</div>
+```
+
+## Mobile Experience
+
+### Touch Interactions
+
+- **Pinch to zoom:** Two-finger zoom
+- **Swipe:** Pan map
+- **Tap:** Open in Google Maps app
+
+### Native App Integration
+
+Clicking the map on mobile typically:
+
+1. Opens Google Maps app (if installed)
+2. Falls back to mobile web version
+3. Shows location with navigation options
+
+## Alternative: Static Map Image
+
+For better performance, consider static image with link:
+
+```html
+<a href="https://maps.google.com/?q=-26.947922,-65.707739" target="_blank">
+  <img
+    src="https://maps.googleapis.com/maps/api/staticmap?center=-26.947922,-65.707739&zoom=15&size=600x400&markers=color:red%7C-26.947922,-65.707739&key=YOUR_API_KEY"
+    alt="Mapa de ubicación"
+    width="600"
+    height="400"
+  />
+</a>
+```
+
+**Benefits:**
+- Faster load (single image vs. iframe)
+- No external JavaScript
+- Better for email/print
+
+**Drawbacks:**
+- Requires API key
+- Not interactive
+- Costs per request after free tier
+
+## Privacy Considerations
+
+### Google Tracking
+
+Google Maps iframe may track:
+- User IP address
+- Browser/device info
+- Interaction with map (zoom, pan, clicks)
+
+### GDPR Compliance
+
+Consider adding to privacy policy:
+
+> "Este sitio utiliza Google Maps para mostrar nuestra ubicación. Google puede recopilar datos de uso según su Política de Privacidad."
+
+### Cookie-Free Alternative
+
+Use `https://www.google.com/maps/embed` (already implemented) instead of `https://maps.google.com` - sets fewer cookies.
+
+## Testing
+
+<Tabs>
+  <Tab title="Desktop">
+    1. Open http://localhost:3000 (or your dev server)
+    2. Scroll to contact section
+    3. Verify map loads
+    4. Test zoom/pan interactions
+    5. Click fullscreen icon
+    6. Verify business name appears
+  </Tab>
+  
+  <Tab title="Mobile">
+    1. Open on mobile device or emulator
+    2. Check map displays correctly
+    3. Test pinch-to-zoom
+    4. Verify tap opens Google Maps app
+    5. Check responsive height (320px)
+  </Tab>
+  
+  <Tab title="Accessibility">
+    1. Use screen reader (VoiceOver/NVDA)
+    2. Verify iframe title is read
+    3. Test keyboard navigation
+    4. Check focus indicators visible
+  </Tab>
+</Tabs>
+
+## Updating Location
+
+To change the displayed location:
+
+<Steps>
+  <Step title="Get New Embed Code">
+    Follow steps in "Generating Embed URL" section
+  </Step>
+  
+  <Step title="Update index.html">
+    Replace iframe src at `index.html:298`
+  </Step>
+  
+  <Step title="Update Address Display">
+    Change text at `index.html:308-309`
+  </Step>
+  
+  <Step title="Update Business Hours">
+    Modify `initBusinessStatus()` if hours change
+  </Step>
+</Steps>
+
+## Related Documentation
+
+- [WhatsApp Integration](/technical/whatsapp-integration) - Contact buttons linked from map section
+- [Architecture](/technical/architecture) - Overall page structure
+- [State Management](/technical/state-management) - Business hours status updates

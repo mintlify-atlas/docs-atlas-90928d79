@@ -1,0 +1,582 @@
+---
+title: 'State Management'
+description: 'Client-side state management patterns without frameworks'
+---
+
+## Overview
+
+Éxodo implements **vanilla JavaScript state management** without using React, Vue, or any state management library. State is managed through:
+
+- Plain JavaScript objects
+- ES6 `Map` data structures
+- Event-driven updates
+- Direct DOM manipulation
+
+## No Framework Approach
+
+<Warning>
+  This application intentionally avoids frameworks to:
+  
+  - Minimize bundle size (no dependencies)
+  - Eliminate build complexity
+  - Maximize browser compatibility
+  - Reduce cognitive overhead
+  - Enable direct HTML/CSS/JS deployment
+</Warning>
+
+## Catalog State Object
+
+The main application state lives in `initCatalogAndCart()`:
+
+```javascript app.js:279-293
+function initCatalogAndCart() {
+  const refs = getCatalogRefs();
+  if (!refs) return;
+
+  const state = {
+    cart: loadCartFromStorage(),
+    activeFilter: null,
+    searchQuery: "",
+  };
+  const savedDeliveryMode = loadDeliveryModeFromStorage();
+  setDeliveryModeUi(refs, savedDeliveryMode);
+
+  renderCatalog(refs.productList, state.activeFilter);
+  renderCart(refs, state.cart);
+  applyCategoryFilter(refs, state, null);
+  // ... event listeners
+}
+```
+
+### State Properties
+
+| Property | Type | Purpose | Initial Value |
+|----------|------|---------|---------------|
+| `cart` | `Map<string, number>` | Cart items (ID → quantity) | From localStorage |
+| `activeFilter` | `string \| null` | Current category filter | `null` |
+| `searchQuery` | `string` | Current search term | `""` |
+
+### State Initialization
+
+<Steps>
+  <Step title="Load Refs">
+    Collect all DOM element references:
+    ```javascript
+    const refs = getCatalogRefs();
+    ```
+  </Step>
+  
+  <Step title="Create State">
+    Initialize state object with localStorage cart:
+    ```javascript
+    const state = {
+      cart: loadCartFromStorage(),
+      activeFilter: null,
+      searchQuery: "",
+    };
+    ```
+  </Step>
+  
+  <Step title="Hydrate UI">
+    Render initial state to DOM:
+    ```javascript
+    renderCatalog(refs.productList, state.activeFilter);
+    renderCart(refs, state.cart);
+    ```
+  </Step>
+  
+  <Step title="Attach Listeners">
+    Wire up event handlers that mutate state
+  </Step>
+</Steps>
+
+## Cart State (Map)
+
+The cart uses ES6 `Map` for efficient item management:
+
+```javascript
+// Cart structure
+Map {
+  "cemento-25" => 5,
+  "hierro-8" => 12,
+  "viguetas-tensolite__3.00" => 8
+}
+```
+
+### Why Map vs Object?
+
+| Feature | Map | Object |
+|---------|-----|--------|
+| **Key types** | Any type | String/Symbol only |
+| **Iteration** | Preserves insertion order | No guaranteed order |
+| **Size** | `.size` property | Manual `Object.keys().length` |
+| **Lookup speed** | O(1) | O(1) |
+| **Serialization** | Requires `Array.from()` | Direct `JSON.stringify()` |
+
+**Choice Rationale:** Map chosen for clean iteration and deletion APIs.
+
+### Cart Mutations
+
+All cart mutations follow this pattern:
+
+```javascript
+function mutateCart(state) {
+  // 1. Update Map
+  state.cart.set(id, qty);
+  
+  // 2. Persist to localStorage
+  saveCartToStorage(state.cart);
+  
+  // 3. Re-render UI
+  renderCart(refs, state.cart);
+}
+```
+
+<CodeGroup>
+```javascript Add Item
+refs.productList.addEventListener("click", (event) => {
+  // ... validation
+  addToCart(state.cart, productId, qty, selectedMeter);
+  saveCartToStorage(state.cart);
+  renderCart(refs, state.cart);
+});
+```
+
+```javascript Update Quantity
+refs.cartItems.addEventListener("click", (event) => {
+  // ... validation
+  if (action === "increase") updateCartQty(state.cart, productId, 1);
+  if (action === "decrease") updateCartQty(state.cart, productId, -1);
+  
+  saveCartToStorage(state.cart);
+  renderCart(refs, state.cart);
+});
+```
+
+```javascript Remove Item
+refs.cartItems.addEventListener("click", (event) => {
+  // ... validation
+  if (action === "remove") removeFromCart(state.cart, productId);
+  
+  saveCartToStorage(state.cart);
+  renderCart(refs, state.cart);
+});
+```
+</CodeGroup>
+
+## Filter State
+
+### Active Filter
+
+Tracks which product category is currently displayed:
+
+```javascript app.js:625-638
+function applyCategoryFilter(refs, state, filter) {
+  state.activeFilter = filter || null;
+  refs.productSearchInput.value = "";
+  state.searchQuery = "";
+  renderCatalog(refs.productList, state.activeFilter, state.searchQuery);
+  updateProductEmptyState(refs, state.activeFilter, state.searchQuery);
+  syncSearchClearButton(refs);
+  closeSearchDropdown(refs);
+  refs.categoryCards.forEach((card) => {
+    const isSelected = card.dataset.filter === state.activeFilter;
+    card.classList.toggle("is-active", isSelected);
+    card.classList.toggle("active", isSelected);
+  });
+}
+```
+
+**State Changes:**
+1. Updates `state.activeFilter`
+2. Clears search query
+3. Re-renders product list
+4. Updates empty state message
+5. Highlights active category card
+
+### Filter Values
+
+| Value | Meaning | Products Shown |
+|-------|---------|----------------|
+| `null` | No filter | None (empty state) |
+| `"all"` | Show all | All categories combined |
+| `"hierros"` | Hierros category | Just Hierros products |
+| `"cementos"` | Cementos category | Just Cementos products |
+| ... | Other categories | Respective products |
+
+## Search State
+
+Search query is stored as a simple string:
+
+```javascript app.js:350-356
+refs.productSearchInput.addEventListener("input", () => {
+  state.searchQuery = refs.productSearchInput.value.trim();
+  renderCatalog(refs.productList, state.activeFilter, state.searchQuery);
+  updateProductEmptyState(refs, state.activeFilter, state.searchQuery);
+  syncSearchClearButton(refs);
+  renderSearchDropdown(refs, state.searchQuery);
+});
+```
+
+### Search Flow
+
+<Steps>
+  <Step title="User Types">
+    Input event fires on every keystroke
+  </Step>
+  
+  <Step title="Update State">
+    ```javascript
+    state.searchQuery = refs.productSearchInput.value.trim();
+    ```
+  </Step>
+  
+  <Step title="Filter Products">
+    Re-render catalog with search filter:
+    ```javascript
+    const filteredItems = category.items.filter((item) =>
+      normalizedQuery ? normalizeText(item.name).includes(normalizedQuery) : true
+    );
+    ```
+  </Step>
+  
+  <Step title="Update UI">
+    - Show/hide clear button
+    - Update product count
+    - Render search dropdown
+    - Update empty state
+  </Step>
+</Steps>
+
+### Text Normalization
+
+Search is accent-insensitive:
+
+```javascript app.js:923-928
+function normalizeText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+```
+
+**Examples:**
+- `"Cañ��" → "cano"`
+- `"Eléctrico" → "electrico"`
+- `"Cerámica" → "ceramica"`
+
+## Delivery Mode State
+
+Delivery preference stored separately (not in main state object):
+
+```javascript app.js:343-348
+refs.deliveryToggleInput.addEventListener("change", () => {
+  const deliveryMode = getSelectedDeliveryMode(refs.deliveryToggleInput);
+  setDeliveryModeUi(refs, deliveryMode);
+  saveDeliveryModeToStorage(deliveryMode);
+  renderCart(refs, state.cart);
+});
+```
+
+### Mode Values
+
+```javascript app.js:966-968
+function getSelectedDeliveryMode(toggleInput) {
+  return toggleInput && toggleInput.checked ? "envio" : "retiro";
+}
+```
+
+| State | Checkbox | Value | Display |
+|-------|----------|-------|----------|
+| Pickup | Unchecked | `"retiro"` | "Retiro en el local" |
+| Delivery | Checked | `"envio"` | "Con envío" |
+
+## Calendar State
+
+Booking calendar has its own state object:
+
+```javascript app.js:1060-1068
+const state = {
+  viewDate: new Date(today.getFullYear(), today.getMonth(), 1),
+  selectedDate: "",
+  selectedService: "limpieza de obra",
+  localBookedDates,
+  occupiedDates,
+};
+```
+
+### Calendar State Properties
+
+<ParamField path="viewDate" type="Date">
+  Currently displayed month (always 1st day of month)
+</ParamField>
+
+<ParamField path="selectedDate" type="string">
+  ISO date string of selected date (empty if none selected)
+</ParamField>
+
+<ParamField path="selectedService" type="string">
+  Service name for WhatsApp message (set by trigger button)
+</ParamField>
+
+<ParamField path="localBookedDates" type="Set<string>">
+  User's booked dates from localStorage
+</ParamField>
+
+<ParamField path="occupiedDates" type="Set<string>">
+  Combined set of default + local booked dates
+</ParamField>
+
+## Slider State
+
+Project slider maintains state within its initialization closure:
+
+```javascript app.js:653-658
+let autoplayTimer = 0;
+let slidesPerView = 1;
+let cloneCount = 1;
+let currentIndex = 0;
+let logicalIndex = 0;
+```
+
+### Infinite Loop Logic
+
+The slider implements infinite scrolling by cloning slides:
+
+```javascript app.js:692-702
+const syncInfinite = () => {
+  if (currentIndex >= originals.length + cloneCount) {
+    currentIndex -= originals.length;
+    updateTrackPosition(false);
+  } else if (currentIndex < cloneCount) {
+    currentIndex += originals.length;
+    updateTrackPosition(false);
+  }
+  logicalIndex = (currentIndex - cloneCount + originals.length) % originals.length;
+  renderDots();
+};
+```
+
+**State Variables:**
+- `currentIndex`: Physical slide position (includes clones)
+- `logicalIndex`: Logical position (0 to N-1, for dot indicators)
+
+## Event-Driven Updates
+
+All state changes are event-driven:
+
+```javascript
+// Pattern: Event → State Mutation → Re-render
+element.addEventListener("event", () => {
+  // 1. Mutate state
+  state.property = newValue;
+  
+  // 2. Persist (if needed)
+  saveToStorage(state.property);
+  
+  // 3. Update UI
+  renderComponent(state);
+});
+```
+
+### Event Delegation
+
+Uses event delegation for dynamic content:
+
+```javascript app.js:316-330
+refs.cartItems.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+
+  const action = target.dataset.action;
+  const productId = target.dataset.id;
+  if (!action || !productId) return;
+
+  if (action === "increase") updateCartQty(state.cart, productId, 1);
+  if (action === "decrease") updateCartQty(state.cart, productId, -1);
+  if (action === "remove") removeFromCart(state.cart, productId);
+
+  saveCartToStorage(state.cart);
+  renderCart(refs, state.cart);
+});
+```
+
+**Benefits:**
+- Single listener for all cart items
+- Works with dynamically added items
+- Better memory efficiency
+- Simpler cleanup
+
+## Render Functions
+
+State changes trigger render functions:
+
+### Cart Render
+
+```javascript app.js:577-623
+function renderCart(refs, cartMap) {
+  const items = Array.from(cartMap.entries())
+    .map(([cartId, qty]) => {
+      const product = resolveProductByCartId(cartId);
+      if (!product) return null;
+      return { ...product, cartId, qty };
+    })
+    .filter(Boolean);
+
+  if (items.length === 0) {
+    refs.cartItems.innerHTML = '<p class="cart-empty">Todavia no agregaste productos.</p>';
+  } else {
+    refs.cartItems.innerHTML = items
+      .map((item) => `
+        <article class="cart-item" data-id="${item.cartId}">
+          <!-- item markup -->
+        </article>
+      `)
+      .join("");
+  }
+
+  const totalItems = items.reduce((sum, item) => sum + item.qty, 0);
+  refs.cartTotal.textContent = `Pedido (${totalItems})`;
+
+  if (items.length === 0) {
+    refs.cartWhatsapp.classList.add("is-disabled");
+    refs.cartWhatsapp.href = CART_WHATSAPP_BASE_URL;
+  } else {
+    const deliveryMode = getSelectedDeliveryMode(refs.deliveryToggleInput);
+    refs.cartWhatsapp.classList.remove("is-disabled");
+    refs.cartWhatsapp.href = `${CART_WHATSAPP_BASE_URL}?text=${encodeURIComponent(
+      buildWhatsappMessage(items, totalItems, deliveryMode)
+    )}`;
+  }
+}
+```
+
+### Catalog Render
+
+```javascript app.js:477-514
+function renderCatalog(container, categoryId, searchQuery = "") {
+  const normalizedQuery = normalizeText(searchQuery);
+
+  if (!categoryId) {
+    container.innerHTML = "";
+    return;
+  }
+
+  if (categoryId === "all") {
+    renderAllCatalog(container, normalizedQuery);
+    return;
+  }
+
+  const category = productCategories.find((item) => item.id === categoryId);
+  if (!category) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const filteredItems = category.items.filter((item) =>
+    normalizedQuery ? normalizeText(item.name).includes(normalizedQuery) : true
+  );
+  const countLabel = normalizedQuery
+    ? `${filteredItems.length} de ${category.items.length} productos`
+    : `${category.items.length} productos`;
+
+  container.innerHTML = `
+    <section class="product-section" data-category="${category.id}">
+      <div class="product-section-header">
+        <h3 class="product-section-title">${category.title}</h3>
+        <span class="product-section-count">${countLabel}</span>
+      </div>
+      <div class="product-grid">
+        ${filteredItems.map((product) => buildProductCardMarkup(product, category.title)).join("")}
+      </div>
+    </section>
+  `;
+}
+```
+
+## State Debugging
+
+Access state in browser console:
+
+```javascript
+// Inspect cart state
+JSON.parse(localStorage.getItem("exodo_cart_v1"))
+
+// View all product IDs
+Array.from(productIndex.keys())
+
+// Test search normalization
+normalizeText("Cañería eléctrica") // "caneria electrica"
+
+// Check filter state (requires breakpoint in initCatalogAndCart)
+console.log(state.activeFilter)
+console.log(state.searchQuery)
+```
+
+## Performance Optimizations
+
+### Debouncing Not Used
+
+<Info>
+  Search input is **not debounced** because:
+  - Filtering is synchronous and fast (< 1ms)
+  - Product catalog is small (< 100 items)
+  - Immediate feedback feels responsive
+  - No API calls to rate-limit
+</Info>
+
+### Efficient Lookups
+
+Product index uses Map for O(1) lookups:
+
+```javascript app.js:1037-1043
+function buildProductIndex(categories) {
+  const index = new Map();
+  categories.forEach((category) => {
+    category.items.forEach((item) => index.set(item.id, item));
+  });
+  return index;
+}
+```
+
+### Minimal Re-renders
+
+Only affected components re-render on state change:
+
+```javascript
+// Example: Search only re-renders catalog, not cart
+refs.productSearchInput.addEventListener("input", () => {
+  state.searchQuery = refs.productSearchInput.value.trim();
+  renderCatalog(refs.productList, state.activeFilter, state.searchQuery); // ← Only catalog
+  updateProductEmptyState(refs, state.activeFilter, state.searchQuery);
+  syncSearchClearButton(refs);
+  renderSearchDropdown(refs, state.searchQuery);
+  // renderCart() NOT called - cart unchanged
+});
+```
+
+## Comparison to Frameworks
+
+| Feature | Éxodo Vanilla JS | React |
+|---------|-----------------|-------|
+| State container | Plain object | `useState` / Redux |
+| Immutability | Manual | Enforced |
+| Reactivity | Manual re-render calls | Automatic |
+| Component model | Functions + DOM | JSX components |
+| Bundle size | 0 KB (no deps) | ~130 KB (min + gzip) |
+| Learning curve | JavaScript basics | Framework APIs |
+| Browser support | All modern browsers | Requires transpilation |
+
+**Trade-offs Accepted:**
+- More verbose update code
+- Manual render coordination
+- No component lifecycle hooks
+- Direct DOM manipulation
+
+**Benefits Gained:**
+- Zero dependencies
+- No build step
+- Maximum browser compatibility
+- Simpler deployment
+- Full control over updates

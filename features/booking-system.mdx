@@ -1,0 +1,709 @@
+---
+title: "Booking System"
+description: "Interactive calendar system for scheduling construction services with date selection and WhatsApp integration"
+---
+
+## Overview
+
+The booking system provides an interactive calendar modal where customers can select dates to schedule construction services. Selected dates are sent via WhatsApp for manual confirmation.
+
+<Note>
+  This is a **date selection interface**, not a complete booking system. No appointments are automatically confirmed. All bookings require WhatsApp conversation for final scheduling.
+</Note>
+
+## Service Types
+
+The calendar supports scheduling for multiple service types:
+
+<CardGroup cols={2}>
+  <Card title="Plomería" icon="wrench">
+    Plumbing installations and repairs
+  </Card>
+  
+  <Card title="Electricidad" icon="bolt">
+    Electrical system installation and certification
+  </Card>
+  
+  <Card title="Limpieza de obra" icon="broom">
+    Construction site cleanup (post-build)
+  </Card>
+  
+  <Card title="Limpieza residencial/turística" icon="house">
+    Home and vacation rental cleaning services
+  </Card>
+</CardGroup>
+
+## Trigger Buttons
+
+Services are accessed via button triggers in construccion.html:124-188:
+
+```html
+<article class="service-premium-card">
+  <span class="service-premium-icon" aria-hidden="true">
+    <!-- SVG icon -->
+  </span>
+  <h4>Plomería</h4>
+  <p class="muted">Instalaciones seguras y eficientes.</p>
+  <button
+    class="btn btn-outline-dark service-calendar-btn"
+    type="button"
+    data-open-cleaning-calendar
+    data-calendar-title="Agendar servicio de plomería"
+    data-calendar-service="plomería"
+  >
+    Consultar
+  </button>
+</article>
+```
+
+**Data Attributes:**
+- `data-open-cleaning-calendar`: Identifies calendar trigger
+- `data-calendar-title`: Custom modal title
+- `data-calendar-service`: Service name for WhatsApp message
+
+## Calendar Modal
+
+### Modal Structure
+
+The modal is defined in construccion.html:256-287:
+
+```html
+<div class="calendar-modal" id="cleaning-calendar-modal" hidden>
+  <div class="calendar-modal-backdrop" data-close-cleaning-calendar></div>
+  <div class="calendar-modal-dialog" role="dialog" aria-modal="true" 
+       aria-labelledby="cleaning-calendar-title">
+    <button class="calendar-modal-close" type="button" 
+            aria-label="Cerrar calendario" data-close-cleaning-calendar>
+      X
+    </button>
+    <div class="calendar-modal-head">
+      <h3 id="cleaning-calendar-title">Agendar limpieza de obra</h3>
+      <p class="muted">Elegí una fecha disponible para coordinar el servicio.</p>
+    </div>
+    <div class="calendar-toolbar">
+      <button type="button" class="calendar-nav-btn" id="calendar-prev-month">
+        &#8249;
+      </button>
+      <strong id="calendar-month-label"></strong>
+      <button type="button" class="calendar-nav-btn" id="calendar-next-month">
+        &#8250;
+      </button>
+    </div>
+    <div class="calendar-legend" aria-hidden="true">
+      <span><i class="dot dot-available"></i> Disponible</span>
+      <span><i class="dot dot-occupied"></i> Ocupado</span>
+    </div>
+    <div class="calendar-weekdays" aria-hidden="true">
+      <span>Dom</span><span>Lun</span><span>Mar</span><span>Mié</span>
+      <span>Jue</span><span>Vie</span><span>Sáb</span>
+    </div>
+    <div class="calendar-grid" id="calendar-grid"></div>
+    <button type="button" class="btn btn-primary calendar-confirm-btn" 
+            id="calendar-confirm-btn">
+      Confirmar fecha
+    </button>
+  </div>
+</div>
+```
+
+**Components:**
+- **Backdrop**: Darkened overlay behind modal
+- **Close Button**: X button in top-right corner
+- **Header**: Service name and instructions
+- **Navigation**: Previous/next month buttons and current month label
+- **Legend**: Visual guide for available/occupied dates
+- **Weekdays**: Day-of-week headers
+- **Grid**: 7-column calendar grid (DOM manipulation)
+- **Confirm Button**: Sends selected date to WhatsApp
+
+### Modal Initialization
+
+The calendar initializes on page load (app.js:1045-1133):
+
+```javascript
+function initCleaningCalendar() {
+  const openButtons = Array.from(
+    document.querySelectorAll("[data-open-cleaning-calendar]")
+  );
+  const modal = document.querySelector("#cleaning-calendar-modal");
+  if (!(openButtons.length > 0 && modal instanceof HTMLElement)) return;
+
+  const closeTriggers = Array.from(
+    modal.querySelectorAll("[data-close-cleaning-calendar]")
+  );
+  const monthLabel = modal.querySelector("#calendar-month-label");
+  const grid = modal.querySelector("#calendar-grid");
+  const prevBtn = modal.querySelector("#calendar-prev-month");
+  const nextBtn = modal.querySelector("#calendar-next-month");
+  const confirmBtn = modal.querySelector("#calendar-confirm-btn");
+  const modalTitle = modal.querySelector("#cleaning-calendar-title");
+  if (!(monthLabel && grid && prevBtn && nextBtn && confirmBtn && modalTitle))
+    return;
+
+  const today = startOfDay(new Date());
+  const localBookedDates = loadCleaningBookedFromStorage();
+  const occupiedDates = new Set([
+    ...CLEANING_DEFAULT_OCCUPIED_DATES,
+    ...localBookedDates,
+  ]);
+  const state = {
+    viewDate: new Date(today.getFullYear(), today.getMonth(), 1),
+    selectedDate: "",
+    selectedService: "limpieza de obra",
+    localBookedDates,
+    occupiedDates,
+  };
+
+  // Event listeners...
+}
+```
+
+**State Object:**
+```javascript
+{
+  viewDate: Date,           // First day of displayed month
+  selectedDate: string,     // ISO date ("2026-03-15") or ""
+  selectedService: string,  // Service name for WhatsApp message
+  localBookedDates: Set,    // Dates booked in this browser session
+  occupiedDates: Set        // All occupied dates (default + local)
+}
+```
+
+## Calendar Rendering
+
+### Render Function
+
+The calendar grid is rendered with JavaScript (app.js:1135-1188):
+
+```javascript
+function renderCleaningCalendar(state, monthLabelEl, gridEl, confirmBtnEl, today) {
+  const year = state.viewDate.getFullYear();
+  const month = state.viewDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const firstWeekday = firstDay.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  monthLabelEl.textContent = firstDay.toLocaleDateString("es-AR", {
+    month: "long",
+    year: "numeric",
+  });
+
+  const dayCells = [];
+
+  // Ghost cells for alignment
+  for (let i = 0; i < firstWeekday; i += 1) {
+    dayCells.push(
+      '<button type="button" class="calendar-day is-ghost" disabled></button>'
+    );
+  }
+
+  // Day cells
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const date = new Date(year, month, day);
+    const isoDate = formatDateIso(date);
+    const isPast = false;
+    const isOccupied = false;
+    const isAvailable = true;
+    const isSelected = state.selectedDate === isoDate;
+    const classes = [
+      "calendar-day",
+      isPast ? "is-past" : "",
+      isOccupied ? "is-occupied" : "",
+      isAvailable ? "is-available" : "",
+      isSelected ? "is-selected" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    dayCells.push(`
+      <button
+        type="button"
+        class="${classes}"
+        data-calendar-date="${isoDate}"
+        ${isAvailable ? "" : "disabled"}
+      >
+        ${day}
+      </button>
+    `);
+  }
+
+  gridEl.innerHTML = dayCells.join("");
+  gridEl.classList.remove("is-month-enter");
+  void gridEl.offsetWidth;  // Force reflow
+  gridEl.classList.add("is-month-enter");
+  updateCalendarConfirmButton(confirmBtnEl, state.selectedDate);
+}
+```
+
+**Rendering Steps:**
+
+<Steps>
+  <Step title="Calculate Month Layout">
+    Determine first day of month and total days in month
+  </Step>
+  
+  <Step title="Update Month Label">
+    Display month name and year in Spanish locale
+  </Step>
+  
+  <Step title="Add Ghost Cells">
+    Insert empty cells to align first day with correct weekday column
+  </Step>
+  
+  <Step title="Generate Day Buttons">
+    Create button for each day with appropriate CSS classes
+  </Step>
+  
+  <Step title="Apply Transition">
+    Add fade-in animation for smooth month changes
+  </Step>
+  
+  <Step title="Update Confirm Button">
+    Enable/disable confirm button based on selection state
+  </Step>
+</Steps>
+
+### Day States
+
+<Warning>
+  **CURRENT IMPLEMENTATION:** All dates show as available. The occupied date logic is implemented but not active:
+  
+  ```javascript
+  const isPast = false;        // Hardcoded
+  const isOccupied = false;    // Hardcoded
+  const isAvailable = true;    // Hardcoded
+  ```
+  
+  Real date validation would require:
+  ```javascript
+  const isPast = date < today;
+  const isOccupied = state.occupiedDates.has(isoDate);
+  const isAvailable = !isPast && !isOccupied;
+  ```
+</Warning>
+
+**Intended CSS Classes:**
+
+- `.is-ghost`: Empty cells for alignment (first row padding)
+- `.is-past`: Dates before today (grayed out)
+- `.is-occupied`: Dates already booked (red, disabled)
+- `.is-available`: Dates that can be selected (blue, clickable)
+- `.is-selected`: Currently selected date (highlighted border)
+
+## Date Selection
+
+### Click Handling
+
+Date selection uses event delegation (app.js:1104-1115):
+
+```javascript
+grid.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const dayBtn = target.closest("[data-calendar-date]");
+  if (!(dayBtn instanceof HTMLButtonElement)) return;
+  if (dayBtn.disabled) return;
+
+  const isoDate = dayBtn.dataset.calendarDate || "";
+  if (!isoDate) return;
+  state.selectedDate = isoDate;
+  renderCleaningCalendar(state, monthLabel, grid, confirmBtn, today);
+});
+```
+
+**Selection Flow:**
+
+<Steps>
+  <Step title="User Clicks Date">
+    Click event bubbles to grid container
+  </Step>
+  
+  <Step title="Find Button Target">
+    Locate closest button with `data-calendar-date` attribute
+  </Step>
+  
+  <Step title="Validate Availability">
+    Check if button is disabled (past or occupied date)
+  </Step>
+  
+  <Step title="Update State">
+    Set `state.selectedDate` to ISO format date string
+  </Step>
+  
+  <Step title="Re-render Calendar">
+    Update UI to show selected state on clicked date
+  </Step>
+</Steps>
+
+### Confirm Button Update
+
+Confirm button text changes based on selection (app.js:1225-1236):
+
+```javascript
+function updateCalendarConfirmButton(button, isoDate) {
+  if (!(button instanceof HTMLButtonElement)) return;
+
+  if (!isoDate) {
+    button.disabled = true;
+    button.textContent = "Confirmar fecha";
+    return;
+  }
+
+  button.disabled = false;
+  button.textContent = `Confirmar ${formatDateForButton(isoDate)}`;
+}
+
+function formatDateForButton(isoDate) {
+  const [year, month, day] = isoDate.split("-");
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+  const monthName = date.toLocaleDateString("es-AR", { month: "long" });
+  return `${day} de ${monthName}`;
+}
+```
+
+**Example States:**
+- No selection: "Confirmar fecha" (disabled)
+- Date selected: "Confirmar 15 de marzo" (enabled)
+
+## Month Navigation
+
+### Previous/Next Buttons
+
+Users can navigate months (app.js:1094-1102):
+
+```javascript
+prevBtn.addEventListener("click", () => {
+  state.viewDate = new Date(
+    state.viewDate.getFullYear(),
+    state.viewDate.getMonth() - 1,
+    1
+  );
+  renderCleaningCalendar(state, monthLabel, grid, confirmBtn, today);
+});
+
+nextBtn.addEventListener("click", () => {
+  state.viewDate = new Date(
+    state.viewDate.getFullYear(),
+    state.viewDate.getMonth() + 1,
+    1
+  );
+  renderCleaningCalendar(state, monthLabel, grid, confirmBtn, today);
+});
+```
+
+**Navigation:**
+- Prev button: Move back one month
+- Next button: Move forward one month
+- No limits: Users can navigate infinitely (past/future)
+
+<Note>
+  In a production system, you'd likely disable navigation to past months or limit future booking range.
+</Note>
+
+## WhatsApp Integration
+
+### Confirm Button Action
+
+When user confirms selected date (app.js:1117-1132):
+
+```javascript
+confirmBtn.addEventListener("click", () => {
+  if (!state.selectedDate) {
+    window.alert("Selecciona una fecha para continuar.");
+    return;
+  }
+
+  const message = `Hola, quiero agendar ${state.selectedService} para el dia ${
+    formatDateForWhatsapp(state.selectedDate)
+  }.`;
+  const url = `https://wa.me/5493812500312?text=${encodeURIComponent(message)}`;
+  window.open(url, "_blank", "noopener");
+
+  state.selectedDate = "";
+  closeModal();
+  renderCleaningCalendar(state, monthLabel, grid, confirmBtn, today);
+});
+```
+
+**Process:**
+
+<Steps>
+  <Step title="Validate Selection">
+    Show alert if no date selected
+  </Step>
+  
+  <Step title="Format Message">
+    Build WhatsApp message with service name and date
+  </Step>
+  
+  <Step title="Open WhatsApp">
+    Open new window with pre-filled message to Constructora number
+  </Step>
+  
+  <Step title="Reset State">
+    Clear selected date and close modal
+  </Step>
+  
+  <Step title="Re-render Calendar">
+    Update UI to remove selection highlight
+  </Step>
+</Steps>
+
+### Date Formatting
+
+Dates are formatted for WhatsApp (app.js:1220-1223):
+
+```javascript
+function formatDateForWhatsapp(isoDate) {
+  const [year, month, day] = isoDate.split("-");
+  return `${day}/${month}/${year}`;
+}
+```
+
+**Examples:**
+- ISO: `"2026-03-15"` → WhatsApp: `"15/03/2026"`
+- ISO: `"2026-12-25"` → WhatsApp: `"25/12/2026"`
+
+### WhatsApp Message Format
+
+**Example Messages:**
+
+```
+Hola, quiero agendar plomería para el dia 15/03/2026.
+```
+
+```
+Hola, quiero agendar electricidad para el dia 22/04/2026.
+```
+
+```
+Hola, quiero agendar limpieza de obra para el dia 30/05/2026.
+```
+
+### Contact Number
+
+Bookings use Constructora WhatsApp:
+```javascript
+const url = `https://wa.me/5493812500312?text=...`;
+```
+
+## Occupied Dates System
+
+### Storage Structure
+
+<Warning>
+  Occupied dates are **NOT implemented**. The infrastructure exists but is unused:
+  
+  ```javascript
+  const CLEANING_DEFAULT_OCCUPIED_DATES = [];  // Empty array
+  ```
+</Warning>
+
+### Load Occupied Dates
+
+LocalStorage loading (app.js:1190-1199):
+
+```javascript
+function loadCleaningBookedFromStorage() {
+  try {
+    const raw = localStorage.getItem(CLEANING_BOOKED_STORAGE_KEY);
+    const parsed = JSON.parse(raw || "[]");
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(String(item))));
+  } catch (_error) {
+    return new Set();
+  }
+}
+```
+
+**Storage Key:** `exodo_cleaning_booked_v1` (app.js:9)
+
+### Save Occupied Dates
+
+Saving logic exists but is never called (app.js:1201-1207):
+
+```javascript
+function saveCleaningBookedToStorage(dateSet) {
+  try {
+    localStorage.setItem(
+      CLEANING_BOOKED_STORAGE_KEY,
+      JSON.stringify(Array.from(dateSet))
+    );
+  } catch (_error) {}
+}
+```
+
+### Implementing Occupied Dates
+
+To activate occupied date tracking:
+
+1. **Add default occupied dates:**
+   ```javascript
+   const CLEANING_DEFAULT_OCCUPIED_DATES = [
+     "2026-03-15",
+     "2026-03-20",
+     "2026-04-10"
+   ];
+   ```
+
+2. **Enable date validation in render:**
+   ```javascript
+   const isPast = date < today;
+   const isOccupied = state.occupiedDates.has(isoDate);
+   const isAvailable = !isPast && !isOccupied;
+   ```
+
+3. **Save booked dates after confirmation:**
+   ```javascript
+   confirmBtn.addEventListener("click", () => {
+     // ...
+     state.occupiedDates.add(state.selectedDate);
+     state.localBookedDates.add(state.selectedDate);
+     saveCleaningBookedToStorage(state.localBookedDates);
+     // ...
+   });
+   ```
+
+## Modal Controls
+
+### Opening Modal
+
+Modal opens when service button clicked (app.js:1070-1078):
+
+```javascript
+const openModal = (triggerBtn) => {
+  const customTitle = triggerBtn instanceof HTMLElement
+    ? triggerBtn.dataset.calendarTitle
+    : "";
+  const customService = triggerBtn instanceof HTMLElement
+    ? triggerBtn.dataset.calendarService
+    : "";
+  modalTitle.textContent = customTitle || "Agendar limpieza de obra";
+  state.selectedService = customService || "limpieza de obra";
+  modal.hidden = false;
+  document.body.style.overflow = "hidden";
+  renderCleaningCalendar(state, monthLabel, grid, confirmBtn, today);
+};
+
+openButtons.forEach((button) => {
+  button.addEventListener("click", () => openModal(button));
+});
+```
+
+**Opening Flow:**
+- Read custom title and service from button data attributes
+- Update modal title
+- Show modal (remove `hidden` attribute)
+- Prevent body scrolling
+- Render current month
+
+### Closing Modal
+
+Modal can be closed three ways (app.js:1080-1092):
+
+```javascript
+const closeModal = () => {
+  modal.hidden = true;
+  document.body.style.overflow = "";
+};
+
+// 1. Click X button or backdrop
+closeTriggers.forEach((trigger) => trigger.addEventListener("click", closeModal));
+
+// 2. Press Escape key
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !modal.hidden) closeModal();
+});
+
+// 3. After confirming date (automatic)
+```
+
+**Closing Flow:**
+- Hide modal (add `hidden` attribute)
+- Restore body scrolling
+- Selection state persists until user reopens
+
+## Utility Functions
+
+### ISO Date Formatting
+
+```javascript
+function formatDateIso(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+```
+
+**Output:** `"2026-03-15"`
+
+### Start of Day
+
+Normalize dates to midnight (app.js:1216-1218):
+
+```javascript
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+```
+
+This ensures date comparisons work correctly without time component.
+
+## Styling
+
+### Calendar Grid
+
+The grid uses CSS Grid (style.css:1592-1599):
+
+```css
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.calendar-grid.is-month-enter {
+  animation: calendar-month-in 0.22s ease;
+}
+```
+
+### Day Button States
+
+Available date styling (style.css:1622-1633):
+
+```css
+.calendar-day.is-available {
+  background: #38bdf8;
+  color: #fff;
+  border-color: #0ea5e9;
+  cursor: pointer;
+  box-shadow: 0 8px 16px rgba(56, 189, 248, 0.28);
+}
+
+.calendar-day.is-available:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 24px rgba(56, 189, 248, 0.36);
+}
+```
+
+Selected date styling (style.css:1653-1657):
+
+```css
+.calendar-day.is-selected {
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 2px #0f172a, 0 14px 24px rgba(15, 23, 42, 0.24);
+  transform: scale(1.05);
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Business Model" icon="briefcase" href="/business-model">
+    Learn about Constructora services and scheduling
+  </Card>
+  <Card title="Shopping Cart" icon="shopping-cart" href="/features/shopping-cart">
+    See another example of WhatsApp integration
+  </Card>
+</CardGroup>

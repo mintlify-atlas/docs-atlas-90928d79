@@ -1,0 +1,585 @@
+---
+title: "Product Catalog System"
+description: "Detailed documentation of the product catalog implementation, search functionality, and category management"
+---
+
+## Overview
+
+The product catalog is the core feature of the Éxodo Corralón (materials supply) business. It enables customers to browse 80+ construction materials organized in 6 categories, search with real-time filtering, and add items to a shopping cart for WhatsApp quotation.
+
+<Note>
+  The catalog is implemented entirely in vanilla JavaScript (app.js) with no framework dependencies. All data is stored in-memory as JavaScript objects.
+</Note>
+
+## Data Structure
+
+### Product Categories Array
+
+Products are organized in a hierarchical structure defined at app.js:12-120:
+
+```javascript
+const productCategories = [
+  {
+    id: "hierros",
+    title: "Hierros",
+    items: [
+      { id: "alambre", name: "Alambre", unit: "Kg" },
+      { id: "hierro-6", name: "Hierro del 6", unit: "Barra" },
+      { id: "hierro-8", name: "Hierro del 8", unit: "Barra" },
+      // ... 10 more items
+    ],
+  },
+  {
+    id: "cementos",
+    title: "Cementos",
+    items: [
+      { id: "cemento-25", name: "Cemento x25kg", unit: "Bolsa" },
+      { id: "plasticor-25", name: "Plasticor x25kg", unit: "Bolsa" },
+      // ... 20 more items
+    ],
+  },
+  // ... 4 more categories
+];
+```
+
+### Product Schema
+
+**Standard Product:**
+```javascript
+{
+  id: string,        // Unique identifier (e.g., "hierro-8")
+  name: string,      // Display name (e.g., "Hierro del 8")
+  unit: string,      // Unit of measurement (e.g., "Barra", "Kg", "Bolsa")
+  price?: string     // Optional price (currently unused, all show "Consultar")
+}
+```
+
+**Product with Meter Options:**
+```javascript
+{
+  id: "viguetas-tensolite",
+  name: "Viguetas tensolite",
+  unit: "Unidad",
+  meterOptions: [
+    "2.00", "2.20", "2.40", "2.60", "2.80", "3.00",
+    "3.20", "3.40", "3.60", "3.80", "4.00", "4.20",
+    "4.40", "4.60", "4.80", "5.00", "5.20", "5.40", "5.60"
+  ]
+}
+```
+
+### Product Index
+
+For fast lookups, products are indexed in a Map at app.js:122:
+
+```javascript
+const productIndex = buildProductIndex(productCategories);
+
+function buildProductIndex(categories) {
+  const index = new Map();
+  categories.forEach((category) => {
+    category.items.forEach((item) => index.set(item.id, item));
+  });
+  return index;
+}
+```
+
+This enables O(1) lookups when resolving cart items or search results.
+
+## Category System
+
+### Available Categories
+
+<CardGroup cols={2}>
+  <Card title="Hierros" icon="weight-hanging">
+    **13 products**
+    
+    Steel bars, wire, mesh, C-profiles for structural work
+  </Card>
+  
+  <Card title="Cementos" icon="mortar-pestle">
+    **22 products**
+    
+    Cement, adhesives, bricks, blocks, aggregates
+  </Card>
+  
+  <Card title="Electricidad" icon="bolt">
+    **0 products**
+    
+    Placeholder category for electrical supplies
+  </Card>
+  
+  <Card title="Sanitarios" icon="toilet">
+    **4 products**
+    
+    PVC pipes, fittings, plumbing adhesives
+  </Card>
+  
+  <Card title="Chapas" icon="sheet-plastic">
+    **8 products**
+    
+    Metal roofing sheets and insulation
+  </Card>
+  
+  <Card title="Herramientas" icon="hammer">
+    **2 products**
+    
+    Construction hardware (nails)
+  </Card>
+</CardGroup>
+
+### Category Selection UI
+
+Categories are displayed as interactive cards in corralon.html:74-165:
+
+```html
+<div class="category-grid">
+  <a class="category-card" href="#catalogo-activo" data-filter="hierros">
+    <span class="category-icon" aria-hidden="true">
+      <!-- SVG icon -->
+    </span>
+    <span class="category-name">Hierros</span>
+  </a>
+  <!-- ...more cards -->
+</div>
+```
+
+**Interaction Flow:**
+
+<Steps>
+  <Step title="Click Category Card">
+    User clicks a category card (e.g., "Hierros")
+  </Step>
+  
+  <Step title="Apply Filter">
+    JavaScript reads `data-filter` attribute and applies category filter
+  </Step>
+  
+  <Step title="Scroll to Catalog">
+    Page smoothly scrolls to `#catalogo-activo` section
+  </Step>
+  
+  <Step title="Render Products">
+    Only products from selected category are displayed
+  </Step>
+  
+  <Step title="Update Active State">
+    Selected category card receives `.is-active` class for visual feedback
+  </Step>
+</Steps>
+
+### Category Filtering Implementation
+
+From app.js:625-638:
+
+```javascript
+function applyCategoryFilter(refs, state, filter) {
+  state.activeFilter = filter || null;
+  refs.productSearchInput.value = "";
+  state.searchQuery = "";
+  renderCatalog(refs.productList, state.activeFilter, state.searchQuery);
+  updateProductEmptyState(refs, state.activeFilter, state.searchQuery);
+  syncSearchClearButton(refs);
+  closeSearchDropdown(refs);
+  refs.categoryCards.forEach((card) => {
+    const isSelected = card.dataset.filter === state.activeFilter;
+    card.classList.toggle("is-active", isSelected);
+    card.classList.toggle("active", isSelected);
+  });
+}
+```
+
+<Note>
+  When a category is selected, the search input is cleared to avoid confusion between filtered and searched results.
+</Note>
+
+## Catalog Rendering
+
+### Rendering Logic
+
+The catalog supports three rendering modes:
+
+1. **No category selected**: Empty state
+2. **Single category**: Shows one category's products
+3. **All categories**: Shows all categories with products (when filter = "all")
+
+**Single Category Render** (app.js:477-514):
+
+```javascript
+function renderCatalog(container, categoryId, searchQuery = "") {
+  const normalizedQuery = normalizeText(searchQuery);
+
+  if (!categoryId) {
+    container.innerHTML = "";
+    return;
+  }
+
+  if (categoryId === "all") {
+    renderAllCatalog(container, normalizedQuery);
+    return;
+  }
+
+  const category = productCategories.find((item) => item.id === categoryId);
+  if (!category) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const filteredItems = category.items.filter((item) =>
+    normalizedQuery ? normalizeText(item.name).includes(normalizedQuery) : true
+  );
+  
+  const countLabel = normalizedQuery
+    ? `${filteredItems.length} de ${category.items.length} productos`
+    : `${category.items.length} productos`;
+
+  container.innerHTML = `
+    <section class="product-section" data-category="${category.id}">
+      <div class="product-section-header">
+        <h3 class="product-section-title">${category.title}</h3>
+        <span class="product-section-count">${countLabel}</span>
+      </div>
+      <div class="product-grid">
+        ${filteredItems.map((product) => 
+          buildProductCardMarkup(product, category.title)).join("")}
+      </div>
+    </section>
+  `;
+}
+```
+
+### Product Card Markup
+
+From app.js:545-575:
+
+```javascript
+function buildProductCardMarkup(product, categoryTitle) {
+  const meterField = Array.isArray(product.meterOptions)
+    ? `
+      <div class="product-qty-field">
+        <label for="meter-${product.id}">Metros</label>
+        <select id="meter-${product.id}" data-meter-select>
+          ${product.meterOptions.map(
+            (meter) => `<option value="${meter}">${meter} m</option>`
+          ).join("")}
+        </select>
+      </div>
+    `
+    : "";
+  
+  const priceLabel = product.price ? product.price : "Consultar";
+
+  return `
+    <article class="product-card">
+      <div class="product-pick-label">${categoryTitle || "Producto"}</div>
+      <h4>${product.name}</h4>
+      <div class="product-meta">Categoria: ${categoryTitle || "General"}</div>
+      <div class="product-price">Precio: ${priceLabel}</div>
+      <div class="product-meta">Unidad: ${product.unit}</div>
+      ${meterField}
+      <div class="product-qty-field">
+        <label for="qty-${product.id}">Cantidad</label>
+        <input id="qty-${product.id}" type="number" min="1" step="1" 
+               value="1" data-qty-input />
+      </div>
+      <div class="product-actions">
+        <button class="btn btn-outline-dark" data-action="add" 
+                data-id="${product.id}">Agregar</button>
+      </div>
+    </article>
+  `;
+}
+```
+
+**Card Components:**
+- **Category Badge**: Color-coded label showing product category
+- **Product Name**: h4 heading with product title
+- **Metadata**: Category and unit information
+- **Price**: Always shows "Consultar" (Inquire)
+- **Meter Selector**: Dropdown for products with length options (optional)
+- **Quantity Input**: Number input with min=1 validation
+- **Add Button**: Triggers cart addition
+
+## Search Functionality
+
+### Search Input
+
+The search field is defined in corralon.html:174-206:
+
+```html
+<div class="product-search">
+  <div class="product-search-field">
+    <span class="product-search-icon" aria-hidden="true">
+      <!-- Search icon SVG -->
+    </span>
+    <input
+      id="buscador-productos"
+      class="product-search-input"
+      type="search"
+      placeholder="Buscar materiales, herramientas o productos..."
+      autocomplete="off"
+    />
+    <button class="product-search-clear" type="button" 
+            aria-label="Limpiar búsqueda" hidden>X</button>
+  </div>
+  <div class="search-dropdown" id="sugerencias-productos" hidden></div>
+  <div class="search-feedback" aria-live="polite"></div>
+</div>
+```
+
+### Real-Time Search
+
+Search triggers on every keystroke (app.js:350-356):
+
+```javascript
+refs.productSearchInput.addEventListener("input", () => {
+  state.searchQuery = refs.productSearchInput.value.trim();
+  renderCatalog(refs.productList, state.activeFilter, state.searchQuery);
+  updateProductEmptyState(refs, state.activeFilter, state.searchQuery);
+  syncSearchClearButton(refs);
+  renderSearchDropdown(refs, state.searchQuery);
+});
+```
+
+### Text Normalization
+
+Search is accent-insensitive using normalization (app.js:923-928):
+
+```javascript
+function normalizeText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+```
+
+**Examples:**
+- "Cementos" matches "cemento", "Cemento", "CEMENTO"
+- "Electricidad" matches "electricidad", "electrícídád" (with accents)
+- "Hierro" matches "hierro", "Hierro", "HIERRO"
+
+### Search Dropdown
+
+As users type, a dropdown shows suggestions (app.js:810-865):
+
+```javascript
+function renderSearchDropdown(refs, rawQuery) {
+  const query = normalizeText(rawQuery);
+  if (!query) {
+    closeSearchDropdown(refs);
+    return;
+  }
+
+  const productMatches = [];
+  productCategories.forEach((category) => {
+    category.items.forEach((item) => {
+      if (!normalizeText(item.name).includes(query)) return;
+      productMatches.push(item);
+    });
+  });
+
+  const categoryMatches = productCategories.filter((category) =>
+    normalizeText(category.title).includes(query)
+  );
+
+  const rows = [];
+  if (productMatches.length) {
+    rows.push('<div class="search-group-label">Productos</div>');
+    productMatches.slice(0, MAX_SEARCH_RESULTS).forEach((item) => {
+      const highlighted = highlightMatch(item.name, rawQuery);
+      rows.push(`
+        <div class="search-item">
+          <div class="search-item-main">
+            <div class="search-item-name">${highlighted}</div>
+          </div>
+          <button class="search-add-btn" type="button" 
+                  data-search-add="${item.id}">Agregar</button>
+        </div>
+      `);
+    });
+  }
+
+  const freeSlots = Math.max(0, MAX_SEARCH_RESULTS - 
+                               Math.min(productMatches.length, MAX_SEARCH_RESULTS));
+  if (freeSlots > 0 && categoryMatches.length) {
+    rows.push('<div class="search-group-label">Categorias</div>');
+    categoryMatches.slice(0, freeSlots).forEach((category) => {
+      rows.push(`
+        <button class="search-category-item" type="button" 
+                data-search-category="${category.id}">
+          Ver todos los productos de ${category.title}
+        </button>
+      `);
+    });
+  }
+
+  if (!rows.length) {
+    rows.push(
+      '<div class="search-empty">No hay coincidencias para tu busqueda.</div>'
+    );
+  }
+
+  refs.searchDropdown.innerHTML = rows.join("");
+  refs.searchDropdown.hidden = false;
+}
+```
+
+**Dropdown Sections:**
+1. **Products**: Up to 6 matching products with "Agregar" (Add) buttons
+2. **Categories**: Remaining slots filled with matching categories
+3. **Empty State**: Message when no matches found
+
+<Note>
+  The maximum number of search results is controlled by `MAX_SEARCH_RESULTS = 6` constant at app.js:8.
+</Note>
+
+### Match Highlighting
+
+Matching text is highlighted with a `<mark>` element (app.js:867-875):
+
+```javascript
+function highlightMatch(text, rawQuery) {
+  const safeText = String(text || "");
+  const query = String(rawQuery || "").trim();
+  if (!query) return safeText;
+
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`(${escaped})`, "ig");
+  return safeText.replace(regex, '<mark class="search-highlight">$1</mark>');
+}
+```
+
+Example: Searching "hierro" in "Hierro del 8" produces:
+```html
+<mark class="search-highlight">Hierro</mark> del 8
+```
+
+### Quick Add from Search
+
+Users can add products directly from search dropdown (app.js:368-386):
+
+```javascript
+refs.searchDropdown.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+
+  const addBtn = target.closest("[data-search-add]");
+  if (addBtn instanceof HTMLElement) {
+    const productId = addBtn.dataset.searchAdd;
+    if (!productId) return;
+    const product = productIndex.get(productId);
+    const defaultMeter =
+      product && Array.isArray(product.meterOptions) && 
+      product.meterOptions.length > 0
+        ? product.meterOptions[0]
+        : "";
+    addToCart(state.cart, productId, 1, defaultMeter);
+    saveCartToStorage(state.cart);
+    renderCart(refs, state.cart);
+    showSearchFeedback(refs, "Producto agregado");
+    return;
+  }
+  // ... handle category selection
+});
+```
+
+<Warning>
+  When adding products with meter options from search, the system defaults to the first meter option (e.g., 2.00m for viguetas). Users cannot select meter length from the dropdown.
+</Warning>
+
+## Empty States
+
+### No Category Selected
+
+When the page loads, users see (app.js:894-897):
+
+```javascript
+if (!activeCategory) {
+  refs.productEmpty.textContent = 
+    "Selecciona una categoria para ver los productos.";
+  refs.productEmpty.hidden = false;
+  return;
+}
+```
+
+### No Search Results
+
+When search returns no matches (app.js:916-920):
+
+```javascript
+refs.productEmpty.textContent =
+  normalizedQuery.length > 0
+    ? "No encontramos productos para tu busqueda."
+    : "Esta categoria no tiene productos disponibles.";
+refs.productEmpty.hidden = false;
+```
+
+### Empty Category
+
+The "Electricidad" category has zero products and will show empty state if selected.
+
+## Performance Considerations
+
+### Efficient Rendering
+
+<Steps>
+  <Step title="String-Based Rendering">
+    Product cards are rendered as HTML strings, not individual DOM insertions
+  </Step>
+  
+  <Step title="Single innerHTML Write">
+    Entire catalog section replaced with one `innerHTML` assignment
+  </Step>
+  
+  <Step title="Map-Based Lookups">
+    Product index uses Map for O(1) lookups vs O(n) array searches
+  </Step>
+  
+  <Step title="Normalized Search Cache">
+    Search queries normalized once, then compared against normalized product names
+  </Step>
+</Steps>
+
+### Event Delegation
+
+Rather than attaching listeners to each product card, events bubble to container (app.js:295-314):
+
+```javascript
+refs.productList.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (target.dataset.action !== "add") return;
+
+  const productId = target.dataset.id;
+  if (!productId) return;
+
+  const product = productIndex.get(productId);
+  if (!product) return;
+
+  const card = target.closest(".product-card");
+  const qtyInput = card ? card.querySelector("[data-qty-input]") : null;
+  const meterInput = card ? card.querySelector("[data-meter-select]") : null;
+  const qty = parsePositiveInteger(
+    qtyInput instanceof HTMLInputElement ? qtyInput.value : "1"
+  );
+  const selectedMeter = meterInput instanceof HTMLSelectElement 
+    ? meterInput.value : "";
+  addToCart(state.cart, productId, qty, selectedMeter);
+  saveCartToStorage(state.cart);
+  renderCart(refs, state.cart);
+});
+```
+
+This scales efficiently even with 100+ product cards.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Shopping Cart" icon="shopping-cart" href="/features/shopping-cart">
+    Learn how cart persistence and WhatsApp integration work
+  </Card>
+  <Card title="Business Model" icon="briefcase" href="/business-model">
+    Understand the corralón's role in the business ecosystem
+  </Card>
+</CardGroup>

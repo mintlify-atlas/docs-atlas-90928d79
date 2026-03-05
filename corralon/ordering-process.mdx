@@ -1,0 +1,307 @@
+---
+title: "Ordering Process"
+description: "Step-by-step guide to ordering construction materials from Éxodo Corralón"
+---
+
+# Ordering Process
+
+Learn how to browse products, build a cart, and send your order to Éxodo Corralón via WhatsApp.
+
+## Overview
+
+The ordering process is streamlined for quick material requests:
+
+1. Browse or search the product catalog
+2. Add items to your shopping cart
+3. Choose delivery or pickup
+4. Send order via WhatsApp
+5. Receive pricing and confirmation
+
+<Note>
+Orders are processed manually via WhatsApp conversation, not through automated checkout. This allows for personalized service and accurate quotes.
+</Note>
+
+## Step-by-Step Guide
+
+<Steps>
+  <Step title="Browse the Product Catalog">
+    Navigate to the **Corralón** section and select a product category.
+    
+    ### Available Categories
+    
+    - Hierros (iron/steel)
+    - Cementos (cement, bricks, aggregates)
+    - Sanitarios (plumbing)
+    - Chapas (metal roofing)
+    - Herramientas (tools)
+    
+    Click any category card to filter products:
+    
+    ```javascript app.js:633-638
+    refs.categoryCards.forEach((card) => {
+      card.addEventListener("click", (event) => {
+        event.preventDefault();
+        const filter = card.dataset.filter || null;
+        applyCategoryFilter(refs, state, filter);
+      });
+    });
+    ```
+  </Step>
+
+  <Step title="Search for Specific Products (Optional)">
+    Use the search bar to find products by name:
+    
+    - Type product name (e.g., "cemento", "hierro 8", "ladrillo")
+    - Search is **accent-insensitive** ("cemento" matches "Cemento")
+    - Results update in real-time as you type
+    - Shows matching products from all categories
+    
+    ```javascript app.js:350-356
+    refs.productSearchInput.addEventListener("input", () => {
+      state.searchQuery = refs.productSearchInput.value.trim();
+      renderCatalog(refs.productList, state.activeFilter, state.searchQuery);
+      updateProductEmptyState(refs, state.activeFilter, state.searchQuery);
+      syncSearchClearButton(refs);
+      renderSearchDropdown(refs, state.searchQuery);
+    });
+    ```
+    
+    <Info>
+    The search dropdown shows up to 6 matching products with an "Agregar" (Add) button for quick cart additions.
+    </Info>
+  </Step>
+
+  <Step title="Add Products to Cart">
+    For each product:
+    
+    1. **Enter quantity** - Use the quantity input field
+    2. **Select length** (if applicable) - For viguetas, choose meter length from dropdown
+    3. **Click "Agregar"** - Adds item to cart
+    
+    ```javascript app.js:295-314
+    refs.productList.addEventListener("click", (event) => {
+      const target = event.target;
+      if (target.dataset.action !== "add") return;
+      
+      const productId = target.dataset.id;
+      const product = productIndex.get(productId);
+      
+      const card = target.closest(".product-card");
+      const qtyInput = card.querySelector("[data-qty-input]");
+      const meterInput = card.querySelector("[data-meter-select]");
+      
+      const qty = parsePositiveInteger(qtyInput.value);
+      const selectedMeter = meterInput ? meterInput.value : "";
+      
+      addToCart(state.cart, productId, qty, selectedMeter);
+      saveCartToStorage(state.cart);
+      renderCart(refs, state.cart);
+    });
+    ```
+    
+    <Warning>
+    For viguetas (concrete joists), **you must select a length** before adding to cart. Lengths range from 2.00m to 5.60m in 20cm increments.
+    </Warning>
+  </Step>
+
+  <Step title="Review Your Cart">
+    The cart panel shows:
+    
+    - **Product name and quantity**
+    - **Unit of measure** (Bolsa, Unidad, Kg, etc.)
+    - **Total item count**
+    
+    You can:
+    - **Increase quantity**: Click the **+** button
+    - **Decrease quantity**: Click the **-** button  
+    - **Remove item**: Click "Quitar" button
+    
+    ```javascript app.js:316-330
+    refs.cartItems.addEventListener("click", (event) => {
+      const target = event.target;
+      const action = target.dataset.action;
+      const productId = target.dataset.id;
+      
+      if (action === "increase") updateCartQty(state.cart, productId, 1);
+      if (action === "decrease") updateCartQty(state.cart, productId, -1);
+      if (action === "remove") removeFromCart(state.cart, productId);
+      
+      saveCartToStorage(state.cart);
+      renderCart(refs, state.cart);
+    });
+    ```
+    
+    <Note>
+    Your cart is **automatically saved to localStorage** and persists even if you close the browser.
+    </Note>
+  </Step>
+
+  <Step title="Choose Delivery Option">
+    Toggle between two delivery modes:
+    
+    - **Retiro** (Pickup): Pick up materials at the corralón
+    - **Envío** (Delivery): Have materials delivered to your job site
+    
+    The toggle switch updates your preference:
+    
+    ```javascript app.js:343-348
+    refs.deliveryToggleInput.addEventListener("change", () => {
+      const deliveryMode = getSelectedDeliveryMode(refs.deliveryToggleInput);
+      setDeliveryModeUi(refs, deliveryMode);
+      saveDeliveryModeToStorage(deliveryMode);
+      renderCart(refs, state.cart);
+    });
+    ```
+    
+    <Info>
+    Delivery fees will be quoted by staff based on your location and order size.
+    </Info>
+  </Step>
+
+  <Step title="Send Order via WhatsApp">
+    Click the **"Enviar pedido por WhatsApp"** button at the bottom of the cart.
+    
+    This generates a pre-formatted WhatsApp message:
+    
+    ```javascript app.js:957-964
+    function buildWhatsappMessage(items, totalItems, deliveryMode) {
+      const deliveryText = 
+        deliveryMode === "envio" ? "con envio" : "con retiro en el local";
+      const lines = [`Hola quiero averiguar estos productos ${deliveryText}:`];
+      items.forEach((item) => lines.push(`- ${item.name}: ${item.qty} ${item.unit}`));
+      lines.push(`Total de items: ${totalItems}`);
+      return lines.join("\n");
+    }
+    ```
+    
+    **Example message:**
+    ```
+    Hola quiero averiguar estos productos con retiro en el local:
+    - Cemento x25kg: 10 Bolsa
+    - Hierro del 8: 25 Barra
+    - Ladrillos 12x18x33: 500 Unidad
+    Total de items: 535
+    ```
+    
+    <Accordion title="What happens after sending?">
+    1. WhatsApp opens with your pre-filled message
+    2. Click "Send" to send to Éxodo Corralón (+54 9 381 570-4653)
+    3. Staff reviews your order
+    4. You receive a response with:
+       - Pricing for each item
+       - Total cost
+       - Availability and delivery timeline
+       - Payment instructions
+    5. Confirm order details via WhatsApp conversation
+    </Accordion>
+  </Step>
+</Steps>
+
+## Cart Persistence
+
+Your cart is saved automatically using localStorage:
+
+```javascript app.js:994-1016
+function loadCartFromStorage() {
+  const cartMap = new Map();
+  
+  try {
+    const raw = localStorage.getItem(CART_STORAGE_KEY);
+    if (!raw) return cartMap;
+    
+    const parsed = JSON.parse(raw);
+    parsed.forEach((entry) => {
+      const id = entry.id;
+      const qty = parsePositiveInteger(entry.cantidad ?? entry.qty);
+      if (!id || !resolveProductByCartId(id)) return;
+      cartMap.set(id, qty);
+    });
+  } catch (_error) {
+    return cartMap;
+  }
+  
+  return cartMap;
+}
+```
+
+<Info>
+Cart data is stored under the key `exodo_cart_v1`. If you clear browser data, your cart will be reset.
+</Info>
+
+## Tips for Efficient Ordering
+
+<CardGroup cols={2}>
+  <Card title="Calculate Accurately" icon="calculator">
+    Know your quantities before ordering. Staff can help with calculations if needed.
+  </Card>
+  
+  <Card title="Order by Phase" icon="layer-group">
+    Break large projects into phase-based orders to reduce on-site storage needs.
+  </Card>
+  
+  <Card title="Check Hours First" icon="clock">
+    Send orders during business hours (Mon-Fri 8:30-18:00) for faster responses.
+  </Card>
+  
+  <Card title="Include Location" icon="location-dot">
+    For delivery orders, provide your job site address in the WhatsApp conversation.
+  </Card>
+</CardGroup>
+
+## Common Scenarios
+
+### Scenario 1: Small Hardware Order
+
+```
+Products:
+- Cemento x25kg: 5 Bolsa
+- Clavos 2 1/2: 2 Kg
+
+Delivery: Retiro (pickup)
+Response time: Within 1 hour during business hours
+```
+
+### Scenario 2: Foundation Materials
+
+```
+Products:
+- Cemento x25kg: 40 Bolsa
+- Hierro del 8: 50 Barra
+- Hierro del 12: 30 Barra
+- Arena x4mt: 2 Viaje
+- Ripio x4mt: 2 Viaje
+
+Delivery: Envío (delivery to job site)
+Response time: Quote within 2-4 hours
+```
+
+### Scenario 3: Roofing Package
+
+```
+Products:
+- Chapa cincalum c27: 45 Unidad
+- Viguetas tensolite 4.20m: 20 Unidad
+- Bovedillas 12mm: 100 Unidad
+- Aislantes 10mm: 45 Unidad
+
+Delivery: Envío scheduled for specific date
+Response time: Quote within 4 hours, delivery scheduled
+```
+
+## Technical Implementation
+
+For developers interested in the cart system:
+
+<CardGroup cols={2}>
+  <Card title="Cart Component" icon="code" href="/technical/cart-component">
+    Technical details of cart rendering and state management
+  </Card>
+  
+  <Card title="Data Persistence" icon="database" href="/technical/data-persistence">
+    localStorage patterns and cart serialization
+  </Card>
+  
+  <Card title="WhatsApp Integration" icon="message" href="/technical/whatsapp-integration">
+    Message formatting and URL encoding
+  </Card>
+</CardGroup>

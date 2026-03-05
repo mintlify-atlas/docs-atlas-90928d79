@@ -1,0 +1,249 @@
+---
+title: "Platform Features"
+description: "Comprehensive overview of all features in the Éxodo Corralón & Piedra Angular Construcción platform"
+---
+
+## Overview
+
+The platform combines e-commerce functionality for building materials with service booking capabilities for construction projects. All features are built with vanilla JavaScript and designed for simplicity and reliability.
+
+## Core Features
+
+<CardGroup cols={2}>
+  <Card title="Product Catalog" icon="box" href="/features/product-catalog">
+    Browse 80+ construction materials organized in 6 categories with real-time search and filtering
+  </Card>
+  
+  <Card title="Shopping Cart" icon="shopping-cart" href="/features/shopping-cart">
+    Add products, manage quantities, choose delivery mode, and send orders via WhatsApp
+  </Card>
+  
+  <Card title="Booking System" icon="calendar" href="/features/booking-system">
+    Interactive calendar for scheduling construction services with date selection and WhatsApp integration
+  </Card>
+  
+  <Card title="Business Hours Tracking" icon="clock" href="/features/business-hours">
+    Real-time open/closed status for both businesses based on current Argentina time
+  </Card>
+</CardGroup>
+
+## Product Catalog Features
+
+### Category System
+Products are organized into 6 main categories defined in `app.js:12-120`:
+
+- **Hierros** (13 products): Steel bars, wire mesh, C-profiles
+- **Cementos** (22 products): Cement, adhesives, bricks, aggregates
+- **Electricidad** (0 products): Placeholder for electrical supplies
+- **Sanitarios** (4 products): PVC pipes, fittings, adhesives
+- **Chapas** (8 products): Metal sheets, insulation
+- **Herramientas** (2 products): Construction hardware
+
+### Search & Discovery
+
+<Steps>
+  <Step title="Real-Time Search">
+    Users type in the search field and see instant results with highlighted matching text. Search is normalized (accents removed) for better matching.
+  </Step>
+  
+  <Step title="Smart Filtering">
+    Click category cards to filter products. The URL hash updates to enable deep linking.
+  </Step>
+  
+  <Step title="Dropdown Suggestions">
+    As users search, a dropdown shows up to 6 product matches and remaining slots for category suggestions.
+  </Step>
+</Steps>
+
+### Product Card Details
+
+Each product displays:
+- Product name and category tag
+- Unit of measurement (Bolsa, Kg, Unidad, etc.)
+- Quantity input field
+- Optional meter selection for viguetas (2.00m - 5.60m options)
+- "Agregar" button to add to cart
+
+## Shopping Cart Features
+
+### Cart Management
+
+```javascript
+// Cart data structure
+const cart = new Map([
+  ["hierro-8", 5],           // productId: quantity
+  ["cemento-25", 10],
+  ["viguetas-tensolite__3.20", 12]  // product with meter option
+]);
+```
+
+<Note>
+  Cart persistence uses localStorage with key `exodo_cart_v1`. Data survives page reloads and browser restarts.
+</Note>
+
+### Delivery Mode Toggle
+
+Users choose between:
+- **Retiro en el local**: Pickup at the store location
+- **Con envío**: Delivery to construction site
+
+The toggle is a custom-styled checkbox with smooth animations. Selection is saved in localStorage (`exodo_delivery_mode_v1`).
+
+### WhatsApp Quote Generation
+
+When users click "Enviar lista por WhatsApp", the cart generates a formatted message:
+
+```javascript
+function buildWhatsappMessage(items, totalItems, deliveryMode) {
+  const deliveryText = 
+    deliveryMode === "envio" ? "con envio" : "con retiro en el local";
+  const lines = [`Hola quiero averiguar estos productos ${deliveryText}:`];
+  items.forEach((item) => lines.push(`- ${item.name}: ${item.qty} ${item.unit}`));
+  lines.push(`Total de items: ${totalItems}`);
+  return lines.join("\n");
+}
+```
+
+Example output:
+```
+Hola quiero averiguar estos productos con envio:
+- Hierro del 8: 5 Barra
+- Cemento x25kg: 10 Bolsa
+- Viguetas tensolite 3.20m: 12 Unidad
+Total de items: 27
+```
+
+## Booking System Features
+
+### Service Types
+
+The calendar modal supports booking for:
+- Plomería (Plumbing)
+- Electricidad (Electrical)
+- Limpieza de obra (Construction cleanup)
+- Limpieza residencial y turística (Residential/tourist cleaning)
+
+### Calendar Functionality
+
+<Warning>
+  The calendar currently shows all dates as available. Occupied date tracking is implemented but the default occupied dates array is empty (`CLEANING_DEFAULT_OCCUPIED_DATES = []` at app.js:10).
+</Warning>
+
+#### Calendar Controls
+- Month navigation (previous/next buttons)
+- Visual indicators: Available (blue), Occupied (red), Selected (highlighted)
+- Date selection: Click any available date
+- Confirmation: Button shows selected date and opens WhatsApp with pre-filled message
+
+#### WhatsApp Integration
+
+```javascript
+const message = `Hola, quiero agendar ${state.selectedService} para el dia ${
+  formatDateForWhatsapp(state.selectedDate)
+}.`;
+const url = `https://wa.me/5493812500312?text=${encodeURIComponent(message)}`;
+window.open(url, "_blank", "noopener");
+```
+
+## Business Hours Tracking
+
+### Real-Time Status
+
+The platform shows live open/closed badges for both businesses:
+
+```javascript
+function isBusinessOpen(openHour, openMinute, closeHour, closeMinute) {
+  const now = new Date();
+  const localDate = new Date(
+    now.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" })
+  );
+  const currentMinutes = localDate.getHours() * 60 + localDate.getMinutes();
+  const opening = openHour * 60 + openMinute;
+  const closing = closeHour * 60 + closeMinute;
+  return currentMinutes >= opening && currentMinutes < closing;
+}
+```
+
+### Business Hours
+
+<CardGroup cols={2}>
+  <Card title="Éxodo Corralón">
+    Monday - Friday: 8:30 AM - 6:00 PM
+    
+    WhatsApp: +54 9 381 570 4653
+  </Card>
+  
+  <Card title="Piedra Angular Constructora">
+    Monday - Friday: 8:30 AM - 9:00 PM
+    
+    WhatsApp: +54 9 381 250 0312
+  </Card>
+</CardGroup>
+
+## UI/UX Features
+
+### Responsive Navigation
+- Sticky header with logo and navigation links
+- Hamburger menu for mobile devices
+- Quick action buttons for both business units
+
+### Project Slider
+Carousel showcasing completed projects with:
+- Infinite loop scrolling
+- Auto-play every 5 seconds
+- Responsive: 1 slide (mobile), 2 slides (tablet), 3 slides (desktop)
+- Touch-friendly controls
+
+### Scroll Animations
+Reveal animations trigger when elements enter viewport (disabled if user prefers reduced motion).
+
+### WhatsApp Float Button
+Persistent floating action button in bottom-right corner for quick WhatsApp access.
+
+## Performance Optimizations
+
+<Steps>
+  <Step title="Debounced Search">
+    Search input triggers instant UI updates without backend calls
+  </Step>
+  
+  <Step title="LocalStorage Caching">
+    Cart and preferences cached locally to reduce data loss
+  </Step>
+  
+  <Step title="Lazy Animations">
+    Scroll animations only activate on viewport entry using IntersectionObserver
+  </Step>
+  
+  <Step title="Efficient Re-renders">
+    Only affected DOM sections update when data changes (cart, catalog, search results)
+  </Step>
+</Steps>
+
+## Accessibility Features
+
+- ARIA labels on all interactive elements
+- Keyboard navigation support
+- Screen reader announcements for dynamic content
+- Reduced motion mode respects user preferences
+- Semantic HTML structure
+- Focus management for modals
+
+## Next Steps
+
+Explore detailed documentation for each feature:
+
+<CardGroup cols={2}>
+  <Card title="Product Catalog" icon="box" href="/features/product-catalog">
+    In-depth catalog system documentation
+  </Card>
+  <Card title="Shopping Cart" icon="shopping-cart" href="/features/shopping-cart">
+    Cart implementation details
+  </Card>
+  <Card title="Booking System" icon="calendar" href="/features/booking-system">
+    Calendar and appointment scheduling
+  </Card>
+  <Card title="Business Hours" icon="clock" href="/features/business-hours">
+    Time tracking implementation
+  </Card>
+</CardGroup>

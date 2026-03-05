@@ -1,0 +1,687 @@
+---
+title: 'Slider Component'
+description: 'Infinite loop carousel for project showcase'
+---
+
+## Overview
+
+The project slider is a responsive carousel that displays completed construction projects. It features:
+
+- **Infinite loop scrolling** with cloned slides
+- **Responsive slide count** (1 mobile, 2 tablet, 3 desktop)
+- **Autoplay** with 5-second intervals
+- **Dot navigation** for direct access
+- **Smooth animations** with CSS transforms
+- **Manual controls** (prev/next buttons)
+
+## HTML Structure
+
+```html index.html:155-199
+<section class="proyectos" aria-label="Carrusel de proyectos ejecutados">
+  <h2>Proyectos ejecutados con estándares profesionales</h2>
+
+  <div class="slider" data-projects-slider>
+    <button class="prev" type="button" data-slider-prev>&#8249;</button>
+
+    <div class="slider-container">
+      <div class="slider-track" data-slider-track>
+        <article class="project-card">
+          <div class="project-media">
+            <img src="Obra1.jpeg" alt="Obra residencial llave en mano" />
+          </div>
+        </article>
+
+        <article class="project-card">
+          <div class="project-media">
+            <img src="Obra 2 .jpeg" alt="Obra comercial" />
+          </div>
+        </article>
+
+        <article class="project-card">
+          <div class="project-media">
+            <img src="Obra 3 .jpeg" alt="Nave industrial" />
+          </div>
+        </article>
+
+        <article class="project-card">
+          <div class="project-media">
+            <img src="Obra 4 .jpeg" alt="Ampliación urbana" />
+          </div>
+        </article>
+
+        <article class="project-card">
+          <div class="project-media">
+            <img src="Obra 5.jfif" alt="Proyecto ejecutado 5" />
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <button class="next" type="button" data-slider-next>&#8250;</button>
+  </div>
+
+  <div class="dots" data-slider-dots></div>
+</section>
+```
+
+### Component Elements
+
+| Element | Purpose |
+|---------|----------|
+| `.slider` | Main container |
+| `.slider-container` | Overflow wrapper (viewport) |
+| `.slider-track` | Horizontal flex container for slides |
+| `.project-card` | Individual slide |
+| `.prev` / `.next` | Navigation buttons |
+| `.dots` | Pagination indicator container |
+
+## Initialization
+
+```javascript app.js:640-803
+function initProjectsSlider() {
+  const section = document.querySelector(".proyectos");
+  const slider = section ? section.querySelector(".slider") : null;
+  const viewport = slider ? slider.querySelector(".slider-container") : null;
+  const track = section ? section.querySelector("[data-slider-track]") : null;
+  const prevBtn = section ? section.querySelector(".prev") : null;
+  const nextBtn = section ? section.querySelector(".next") : null;
+  const dotsWrap = section ? section.querySelector(".dots") : null;
+  if (!(section && slider && viewport && track && prevBtn && nextBtn && dotsWrap)) return;
+
+  const originals = Array.from(track.querySelectorAll(".project-card"));
+  if (originals.length === 0) return;
+
+  let autoplayTimer = 0;
+  let slidesPerView = 1;
+  let cloneCount = 1;
+  let currentIndex = 0;
+  let logicalIndex = 0;
+
+  // ... implementation
+}
+```
+
+### State Variables
+
+<ParamField path="autoplayTimer" type="number">
+  Interval ID for autoplay (0 when stopped)
+</ParamField>
+
+<ParamField path="slidesPerView" type="number">
+  Number of slides visible at once (1, 2, or 3)
+</ParamField>
+
+<ParamField path="cloneCount" type="number">
+  Number of clones on each end (matches slidesPerView)
+</ParamField>
+
+<ParamField path="currentIndex" type="number">
+  Physical position in track (includes clones)
+</ParamField>
+
+<ParamField path="logicalIndex" type="number">
+  Logical position (0 to N-1, for dot indicators)
+</ParamField>
+
+## Responsive Slides Per View
+
+```javascript app.js:660-664
+const getSlidesPerView = () => {
+  if (window.innerWidth >= 1024) return 3;
+  if (window.innerWidth >= 700) return 2;
+  return 1;
+};
+```
+
+| Breakpoint | Slides Visible |
+|------------|----------------|
+| < 700px | 1 (mobile) |
+| 700px - 1023px | 2 (tablet) |
+| ≥ 1024px | 3 (desktop) |
+
+## Infinite Loop Implementation
+
+### Clone Generation
+
+The slider clones slides on both ends to create seamless infinite scrolling:
+
+```javascript app.js:705-741
+const build = () => {
+  logicalIndex = (currentIndex - cloneCount + originals.length) % originals.length;
+  slidesPerView = getSlidesPerView();
+  cloneCount = Math.min(slidesPerView, originals.length);
+  section.style.setProperty("--slides-per-view", String(slidesPerView));
+
+  // Remove existing clones
+  Array.from(track.querySelectorAll("[data-clone='true']")).forEach((clone) => clone.remove());
+
+  // Clone slides for tail
+  const headClones = originals
+    .slice(-cloneCount)
+    .map((slide) => {
+      const clone = slide.cloneNode(true);
+      clone.dataset.clone = "true";
+      return clone;
+    });
+  
+  // Clone slides for head
+  const tailClones = originals
+    .slice(0, cloneCount)
+    .map((slide) => {
+      const clone = slide.cloneNode(true);
+      clone.dataset.clone = "true";
+      return clone;
+    });
+
+  // Insert clones
+  headClones.forEach((clone) => track.insertBefore(clone, track.firstChild));
+  tailClones.forEach((clone) => track.appendChild(clone));
+
+  // Set slide widths
+  const gap = Number.parseFloat(getComputedStyle(track).columnGap || "0");
+  const viewportWidth = viewport.getBoundingClientRect().width;
+  const cardWidth = (viewportWidth - gap * (slidesPerView - 1)) / slidesPerView;
+  Array.from(track.querySelectorAll(".project-card")).forEach((card) => {
+    card.style.flex = `0 0 ${cardWidth}px`;
+  });
+
+  currentIndex = cloneCount + logicalIndex;
+  renderDots();
+  updateTrackPosition(false);
+};
+```
+
+### Clone Layout Example
+
+With 5 original slides and `cloneCount = 2`:
+
+```
+[Clone 4] [Clone 5] | [Slide 1] [Slide 2] [Slide 3] [Slide 4] [Slide 5] | [Clone 1] [Clone 2]
+                    ^
+                    Starting position (currentIndex = 2)
+```
+
+### Infinite Sync Logic
+
+```javascript app.js:692-702
+const syncInfinite = () => {
+  if (currentIndex >= originals.length + cloneCount) {
+    // Scrolled past end - jump to start
+    currentIndex -= originals.length;
+    updateTrackPosition(false);
+  } else if (currentIndex < cloneCount) {
+    // Scrolled before start - jump to end
+    currentIndex += originals.length;
+    updateTrackPosition(false);
+  }
+  logicalIndex = (currentIndex - cloneCount + originals.length) % originals.length;
+  renderDots();
+};
+```
+
+**Triggering:**
+Sync runs on `transitionend` event after slide animation completes:
+
+```javascript app.js:791
+track.addEventListener("transitionend", syncInfinite);
+```
+
+### Example Flow
+
+<Steps>
+  <Step title="User Clicks Next">
+    ```javascript
+    currentIndex += 1; // 6 → 7
+    updateTrackPosition(true); // Animate to slide 7 (Clone 2)
+    ```
+  </Step>
+  
+  <Step title="Transition Completes">
+    `transitionend` event fires
+  </Step>
+  
+  <Step title="Sync Detects Clone">
+    ```javascript
+    if (currentIndex >= 7) { // 7 >= 7 (5 + 2)
+      currentIndex -= 5; // 7 → 2 (jump to real Slide 2)
+      updateTrackPosition(false); // Instant jump (no animation)
+    }
+    ```
+  </Step>
+  
+  <Step title="User Sees Seamless Loop">
+    Visual position appears unchanged, but physically jumped to real slide
+  </Step>
+</Steps>
+
+## Track Transform Updates
+
+```javascript app.js:666-672
+const getStepWidth = () => {
+  const first = track.querySelector(".project-card");
+  if (!first) return 0;
+  const firstWidth = first.getBoundingClientRect().width;
+  const gap = Number.parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap || "0");
+  return firstWidth + gap;
+};
+```
+
+```javascript app.js:683-689
+const updateTrackPosition = (withTransition = true) => {
+  track.style.transition = withTransition
+    ? "transform 0.72s cubic-bezier(0.22, 0.61, 0.36, 1)"
+    : "none";
+  const step = getStepWidth();
+  track.style.transform = `translate3d(${-currentIndex * step}px, 0, 0)`;
+};
+```
+
+**Parameters:**
+- `withTransition = true`: Smooth animation (user navigation)
+- `withTransition = false`: Instant jump (infinite loop sync)
+
+## Navigation Controls
+
+### Next/Previous Buttons
+
+```javascript app.js:750-758
+const next = () => {
+  currentIndex += 1;
+  updateTrackPosition(true);
+};
+
+const prev = () => {
+  currentIndex -= 1;
+  updateTrackPosition(true);
+};
+```
+
+```javascript app.js:771-778
+nextBtn.addEventListener("click", () => {
+  next();
+  startAutoplay();
+});
+prevBtn.addEventListener("click", () => {
+  prev();
+  startAutoplay();
+});
+```
+
+**Behavior:**
+- Increment/decrement physical index
+- Animate transition
+- Restart autoplay timer
+
+### Dot Navigation
+
+```javascript app.js:674-681
+const renderDots = () => {
+  dotsWrap.innerHTML = originals
+    .map(
+      (_item, index) =>
+        `<button class="dot${index === logicalIndex ? " is-active" : ""}" type="button" data-dot-index="${index}" aria-label="Ir al proyecto ${index + 1}"></button>`
+    )
+    .join("");
+};
+```
+
+```javascript app.js:743-748
+const goToLogical = (index) => {
+  logicalIndex = (index + originals.length) % originals.length;
+  currentIndex = cloneCount + logicalIndex;
+  updateTrackPosition(true);
+  renderDots();
+};
+```
+
+```javascript app.js:780-789
+dotsWrap.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const dot = target.closest("[data-dot-index]");
+  if (!(dot instanceof HTMLElement)) return;
+  const index = Number.parseInt(dot.dataset.dotIndex || "", 10);
+  if (!Number.isFinite(index)) return;
+  goToLogical(index);
+  startAutoplay();
+});
+```
+
+## Autoplay System
+
+### Start Autoplay
+
+```javascript app.js:766-769
+const startAutoplay = () => {
+  stopAutoplay();
+  autoplayTimer = window.setInterval(next, 5000);
+};
+```
+
+**Interval:** 5000ms (5 seconds)
+
+### Stop Autoplay
+
+```javascript app.js:760-764
+const stopAutoplay = () => {
+  if (autoplayTimer) window.clearInterval(autoplayTimer);
+  autoplayTimer = 0;
+};
+```
+
+### Pause on Interaction
+
+```javascript app.js:792-795
+slider.addEventListener("mouseenter", stopAutoplay);
+slider.addEventListener("mouseleave", startAutoplay);
+slider.addEventListener("focusin", stopAutoplay);
+slider.addEventListener("focusout", startAutoplay);
+```
+
+**Triggers:**
+- Mouse enters slider → Pause
+- Mouse leaves slider → Resume
+- Focus enters (keyboard nav) → Pause
+- Focus leaves → Resume
+
+## Responsive Rebuild
+
+```javascript app.js:796-799
+window.addEventListener("resize", () => {
+  window.clearTimeout(initProjectsSlider.resizeTimer);
+  initProjectsSlider.resizeTimer = window.setTimeout(() => build(), 120);
+});
+```
+
+**Debounced resize handler:**
+1. Clear existing timeout
+2. Set 120ms timeout
+3. Rebuild slider with new viewport size
+4. Recalculates `slidesPerView`, slide widths, clones
+
+<Note>
+  The rebuild is debounced to avoid excessive calculations during resize. Uses function property `initProjectsSlider.resizeTimer` to store timeout ID.
+</Note>
+
+## CSS Styling
+
+### Slider Layout
+
+```css style.css:559-581
+.proyectos {
+  --slides-per-view: 1;
+  --slider-gap: 12px;
+  margin-top: 10px;
+}
+
+.proyectos .slider {
+  position: relative;
+  padding: 0 6px;
+}
+
+.proyectos .slider-container {
+  overflow: hidden;
+  border-radius: 22px;
+  width: 100%;
+}
+
+.proyectos .slider-track {
+  display: flex;
+  gap: var(--slider-gap);
+  transition: transform 0.78s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+```
+
+### Project Card
+
+```css style.css:583-611
+.proyectos .project-card {
+  flex: 0 0 auto;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 20, 25, 0.1);
+  overflow: hidden;
+}
+
+.proyectos .project-media {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #dfe3e8;
+}
+
+.proyectos .project-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  transition: transform 0.55s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.proyectos .project-card:hover .project-media img {
+  transform: scale(1.045);
+}
+```
+
+### Navigation Buttons
+
+```css style.css:613-648
+.proyectos .prev,
+.proyectos .next {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--slate-2);
+  font-size: 1.35rem;
+  line-height: 1;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 10px 20px rgba(15, 20, 25, 0.16);
+}
+
+.proyectos .prev {
+  left: 14px;
+}
+
+.proyectos .next {
+  right: 14px;
+}
+
+.proyectos .prev:hover,
+.proyectos .next:hover {
+  transform: translateY(-50%) scale(1.03);
+}
+
+.proyectos .prev:active,
+.proyectos .next:active {
+  transform: translateY(-50%) scale(0.96);
+}
+```
+
+### Dots Indicator
+
+```css style.css:650-671
+.proyectos .dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.proyectos .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  border: 0;
+  background: #cbd5e1;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.proyectos .dot.is-active {
+  background: var(--accent);
+  transform: scale(1.2);
+}
+```
+
+### Responsive Breakpoints
+
+```css style.css:752-778
+@media (min-width: 700px) {
+  .proyectos {
+    --slides-per-view: 2;
+  }
+}
+
+@media (min-width: 1024px) {
+  .proyectos {
+    --slides-per-view: 3;
+  }
+}
+
+@media (max-width: 640px) {
+  .proyectos .prev,
+  .proyectos .next {
+    width: 36px;
+    height: 36px;
+  }
+
+  .proyectos .prev {
+    left: 8px;
+  }
+
+  .proyectos .next {
+    right: 8px;
+  }
+}
+```
+
+## Performance Optimizations
+
+### CSS Custom Properties
+
+```javascript app.js:709
+section.style.setProperty("--slides-per-view", String(slidesPerView));
+```
+
+CSS variable updated on resize for styling flexibility.
+
+### Hardware Acceleration
+
+```css
+will-change: transform;
+transform: translate3d(...);
+```
+
+Forces GPU acceleration for smooth 60fps animations.
+
+### Cubic Bezier Easing
+
+```css
+transition: transform 0.72s cubic-bezier(0.22, 0.61, 0.36, 1);
+```
+
+Custom easing function for natural feel (eases out).
+
+### Debounced Resize
+
+```javascript
+window.setTimeout(() => build(), 120);
+```
+
+120ms delay prevents excessive recalculations during window resize.
+
+## Accessibility
+
+### ARIA Labels
+
+```html
+<section class="proyectos" aria-label="Carrusel de proyectos ejecutados">
+  <button aria-label="Proyecto anterior">&#8249;</button>
+  <button aria-label="Proyecto siguiente">&#8250;</button>
+  <button aria-label="Ir al proyecto 1"></button>
+</section>
+```
+
+### Keyboard Navigation
+
+- **Tab**: Focus next/prev buttons and dots
+- **Enter/Space**: Activate focused control
+- **Focus events**: Pause autoplay
+
+### Image Alt Text
+
+```html
+<img src="Obra1.jpeg" alt="Obra residencial llave en mano" />
+```
+
+Descriptive alt text for each project image.
+
+## Testing Slider
+
+Test in browser console:
+
+```javascript
+// Access slider state (requires adding to window in init)
+window.sliderState = { currentIndex, logicalIndex, slidesPerView };
+
+// Manually trigger next
+next();
+
+// Jump to specific slide
+goToLogical(2);
+
+// Check clone count
+document.querySelectorAll('.project-card[data-clone="true"]').length;
+
+// Stop autoplay
+stopAutoplay();
+
+// Start autoplay
+startAutoplay();
+
+// Trigger resize
+window.dispatchEvent(new Event('resize'));
+```
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Infinite loop not working">
+    **Check:**
+    - `transitionend` event listener attached
+    - Clone generation in `build()` function
+    - `syncInfinite()` logic for boundary detection
+  </Accordion>
+  
+  <Accordion title="Slides wrong size after resize">
+    **Solution:**
+    - Ensure `build()` recalculates slide widths
+    - Check gap calculation from computed styles
+    - Verify flex basis is applied to all cards
+  </Accordion>
+  
+  <Accordion title="Autoplay doesn't pause">
+    **Check:**
+    - Mouse/focus event listeners attached to slider
+    - `stopAutoplay()` clears interval correctly
+    - `startAutoplay()` called on mouse leave/focus out
+  </Accordion>
+  
+  <Accordion title="Dots out of sync">
+    **Solution:**
+    - Call `renderDots()` after every index change
+    - Verify `logicalIndex` calculation in `syncInfinite()`
+  </Accordion>
+</AccordionGroup>

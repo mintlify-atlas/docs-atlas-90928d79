@@ -1,0 +1,341 @@
+---
+title: "Delivery Options"
+description: "Understanding delivery and pickup options for Éxodo Corralón materials"
+---
+
+# Delivery Options
+
+Éxodo Corralón offers two ways to receive your construction materials: delivery to your job site or pickup at the corralón.
+
+## Delivery Modes
+
+<CardGroup cols={2}>
+  <Card title="Retiro (Pickup)" icon="warehouse">
+    Pick up materials at the corralón location
+    
+    - No delivery fee
+    - Immediate availability
+    - Inspect materials before loading
+    - You provide transportation
+  </Card>
+  
+  <Card title="Envío (Delivery)" icon="truck">
+    Materials delivered to your job site
+    
+    - Delivery fee based on distance and load
+    - Scheduled delivery date/time
+    - Unloading at your specified location
+    - Coordinated with project timeline
+  </Card>
+</CardGroup>
+
+## Selecting Delivery Mode
+
+The website includes a delivery mode toggle on the cart panel:
+
+```html corralon.html
+<div class="delivery-switch-wrap">
+  <div class="delivery-switch-title">Modo de entrega</div>
+  <div class="delivery-switch-control" id="delivery-switch-control" data-mode="retiro">
+    <span class="delivery-switch-label" data-role="retiro">Retiro</span>
+    <label class="delivery-switch">
+      <input type="checkbox" id="delivery-mode-toggle" />
+      <span class="delivery-switch-track">
+        <span class="delivery-switch-thumb"></span>
+      </span>
+    </label>
+    <span class="delivery-switch-label" data-role="envio">Envío</span>
+  </div>
+</div>
+```
+
+### How It Works
+
+<Steps>
+  <Step title="Toggle the Switch">
+    Click the delivery mode switch to toggle between "Retiro" (left) and "Envío" (right).
+    
+    ```javascript app.js:343-348
+    refs.deliveryToggleInput.addEventListener("change", () => {
+      const deliveryMode = getSelectedDeliveryMode(refs.deliveryToggleInput);
+      setDeliveryModeUi(refs, deliveryMode);
+      saveDeliveryModeToStorage(deliveryMode);
+      renderCart(refs, state.cart);
+    });
+    ```
+  </Step>
+
+  <Step title="Mode Persists">
+    Your delivery preference is **saved to localStorage**:
+    
+    ```javascript app.js:976-992
+    function loadDeliveryModeFromStorage() {
+      try {
+        const raw = localStorage.getItem(DELIVERY_MODE_STORAGE_KEY);
+        return raw === "envio" ? "envio" : "retiro";
+      } catch (_error) {
+        return "retiro";
+      }
+    }
+    
+    function saveDeliveryModeToStorage(mode) {
+      const safeMode = mode === "envio" ? "envio" : "retiro";
+      try {
+        localStorage.setItem(DELIVERY_MODE_STORAGE_KEY, safeMode);
+      } catch (_error) {
+        // localStorage can fail in private mode
+      }
+    }
+    ```
+    
+    <Info>
+    Default mode is "Retiro" (pickup). Your selection persists across browser sessions.
+    </Info>
+  </Step>
+
+  <Step title="WhatsApp Message Updates">
+    The delivery mode affects the WhatsApp message text:
+    
+    ```javascript app.js:957-964
+    function buildWhatsappMessage(items, totalItems, deliveryMode) {
+      const deliveryText = 
+        deliveryMode === "envio" ? "con envio" : "con retiro en el local";
+      const lines = [`Hola quiero averiguar estos productos ${deliveryText}:`];
+      items.forEach((item) => lines.push(`- ${item.name}: ${item.qty} ${item.unit}`));
+      lines.push(`Total de items: ${totalItems}`);
+      return lines.join("\n");
+    }
+    ```
+    
+    **Retiro message:**
+    ```
+    Hola quiero averiguar estos productos con retiro en el local:
+    - Cemento x25kg: 10 Bolsa
+    ```
+    
+    **Envío message:**
+    ```
+    Hola quiero averiguar estos productos con envio:
+    - Cemento x25kg: 10 Bolsa
+    ```
+  </Step>
+</Steps>
+
+## Retiro (Pickup) Details
+
+### Advantages
+
+- **No delivery charge**
+- **Immediate availability** (same day if in stock)
+- **Inspect materials** before loading
+- **Flexible timing** within business hours
+
+### Requirements
+
+- You must provide transportation
+- Vehicle must accommodate load size and weight
+- Loading assistance available at corralón
+- Pickup during business hours: Mon-Fri 8:30 AM - 6:00 PM
+
+### Recommended For
+
+<CardGroup cols={2}>
+  <Card title="Small Orders" icon="box">
+    Hardware, tools, small quantities that fit in a pickup truck or van
+  </Card>
+  
+  <Card title="Urgent Needs" icon="bolt">
+    Last-minute orders needed same day
+  </Card>
+  
+  <Card title="Nearby Projects" icon="location-dot">
+    Job sites close to the corralón (within 5-10 minutes)
+  </Card>
+  
+  <Card title="Cost Savings" icon="piggy-bank">
+    Save on delivery fees for budget-conscious projects
+  </Card>
+</CardGroup>
+
+## Envío (Delivery) Details
+
+### Advantages
+
+- **Convenience** - materials arrive at your job site
+- **Large loads** - bulk materials like sand, gravel, cement pallets
+- **Phased delivery** - coordinate arrivals with construction timeline
+- **Unloading** - delivered to specified location on site
+
+### Considerations
+
+- **Delivery fee** applies (quoted based on distance and load)
+- **Scheduling required** - arranged via WhatsApp conversation
+- **Access requirements** - truck must be able to reach unload location
+- **Receiving** - someone must be present to receive materials
+
+### Delivery Zones
+
+Primary service area:
+- El Mollar and surrounding areas
+- Tafí del Valle region
+- Other locations: confirm availability and pricing with staff
+
+<Warning>
+For delivery outside the primary service zone, confirm availability when requesting your quote. Additional fees may apply for distant locations.
+</Warning>
+
+### Recommended For
+
+<CardGroup cols={2}>
+  <Card title="Bulk Materials" icon="truck-ramp-box">
+    Sand, gravel, cement pallets - materials sold by truckload or pallet
+  </Card>
+  
+  <Card title="Heavy Items" icon="weight-hanging">
+    Rebar bundles, steel profiles, large quantities of bricks
+  </Card>
+  
+  <Card title="Remote Sites" icon="map-location-dot">
+    Job sites far from the corralón
+  </Card>
+  
+  <Card title="Scheduled Projects" icon="calendar-check">
+    Coordinate deliveries with construction phases
+  </Card>
+</CardGroup>
+
+## Delivery Scheduling
+
+When you select "Envío" mode and send your order via WhatsApp:
+
+<Steps>
+  <Step title="Provide Job Site Address">
+    In the WhatsApp conversation, share your delivery location:
+    - Full street address
+    - Neighborhood/area
+    - Any access restrictions or special instructions
+  </Step>
+
+  <Step title="Receive Quote">
+    Staff responds with:
+    - Product pricing
+    - Delivery fee estimate
+    - Available delivery dates
+    - Estimated delivery time window
+  </Step>
+
+  <Step title="Confirm Date">
+    Choose a delivery date that aligns with your project schedule.
+    
+    Consider:
+    - When you'll need the materials
+    - Site readiness (access, storage area)
+    - Labor availability to receive and organize materials
+  </Step>
+
+  <Step title="Receive Delivery">
+    On delivery day:
+    - Be present or have someone on-site
+    - Direct driver to unload location
+    - Inspect materials upon delivery
+    - Sign delivery confirmation
+  </Step>
+</Steps>
+
+## Delivery Fees
+
+Delivery pricing factors:
+
+| Factor | Impact |
+|--------|--------|
+| **Distance** | Further locations cost more |
+| **Load size** | Larger loads may require multiple trips |
+| **Access** | Difficult access (narrow roads, hills) may increase cost |
+| **Timing** | Rush deliveries may have premium pricing |
+
+<Info>
+Exact delivery fees are quoted individually based on your specific order and location. Request a quote via WhatsApp.
+</Info>
+
+## Storage Key for localStorage
+
+```javascript app.js:6
+const DELIVERY_MODE_STORAGE_KEY = "exodo_delivery_mode_v1";
+```
+
+The delivery mode preference is stored in localStorage under this key:
+
+- **Value**: `"retiro"` or `"envio"`
+- **Default**: `"retiro"` if not set
+- **Persistence**: Survives browser refresh and new sessions
+- **Clearing**: Reset if user clears browser data
+
+## Technical Implementation
+
+For developers:
+
+### UI State Management
+
+```javascript app.js:970-974
+function setDeliveryModeUi(refs, mode) {
+  const safeMode = mode === "envio" ? "envio" : "retiro";
+  refs.deliveryToggleInput.checked = safeMode === "envio";
+  refs.deliverySwitchControl.dataset.mode = safeMode;
+}
+```
+
+The switch uses:
+- **Checkbox state**: Unchecked = Retiro, Checked = Envío
+- **CSS data attribute**: `data-mode="retiro"` or `data-mode="envio"` for label styling
+
+### CSS Styling
+
+```css style.css:1361-1367
+.delivery-switch-control[data-mode="retiro"] .delivery-switch-label[data-role="retiro"] {
+  color: var(--slate-2);
+}
+
+.delivery-switch-control[data-mode="envio"] .delivery-switch-label[data-role="envio"] {
+  color: var(--slate-2);
+}
+```
+
+The active mode label is highlighted with darker text color.
+
+## Best Practices
+
+<Accordion title="Plan Ahead for Deliveries">
+Schedule deliveries at least 24-48 hours in advance to ensure availability and preferred timing.
+</Accordion>
+
+<Accordion title="Consider Storage Constraints">
+For large orders, think about on-site storage capacity. Phased deliveries can reduce material waste and theft risk.
+</Accordion>
+
+<Accordion title="Communicate Access Details">
+Inform delivery staff about:
+- Gate codes or entry procedures
+- Best route to site
+- Where to unload
+- Any height or weight restrictions
+</Accordion>
+
+<Accordion title="Pickup for Urgent Needs">
+If you need materials the same day, choose pickup mode and confirm availability via WhatsApp before heading to the corralón.
+</Accordion>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Ordering Process" icon="cart-shopping" href="/corralon/ordering-process">
+    Complete ordering guide
+  </Card>
+  
+  <Card title="Shopping Cart" icon="bag-shopping" href="/features/shopping-cart">
+    How the cart system works
+  </Card>
+  
+  <Card title="Data Persistence" icon="database" href="/technical/data-persistence">
+    localStorage implementation details
+  </Card>
+</CardGroup>
