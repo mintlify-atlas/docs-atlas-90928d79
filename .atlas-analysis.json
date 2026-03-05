@@ -1,0 +1,79 @@
+{
+  "projectType": "saas",
+  "projectName": "Éxodo Corralón & Piedra Angular Construcción",
+  "projectDescription": "A dual-business platform combining a construction materials supplier (corralón) with a professional construction company, featuring product catalog, shopping cart, and service booking.",
+  "theme": "almond",
+  "primaryColor": "#c65b1f",
+  "lightColor": "#ffb679",
+  "darkColor": "#8d3a0f",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Overview",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "features", "business-model"]
+          },
+          {
+            "group": "Core Features",
+            "pages": ["features/product-catalog", "features/shopping-cart", "features/booking-system", "features/business-hours"]
+          }
+        ]
+      },
+      {
+        "tab": "User Guide",
+        "groups": [
+          {
+            "group": "Corralón (Materials)",
+            "pages": ["corralon/overview", "corralon/product-categories", "corralon/ordering-process", "corralon/delivery-options"]
+          },
+          {
+            "group": "Construcción (Construction)",
+            "pages": ["construccion/overview", "construccion/services", "construccion/project-workflow", "construccion/booking"]
+          }
+        ]
+      },
+      {
+        "tab": "Technical Reference",
+        "groups": [
+          {
+            "group": "Architecture",
+            "pages": ["technical/architecture", "technical/data-persistence", "technical/state-management"]
+          },
+          {
+            "group": "Components",
+            "pages": ["technical/product-catalog-component", "technical/cart-component", "technical/calendar-component", "technical/slider-component"]
+          },
+          {
+            "group": "Integration",
+            "pages": ["technical/whatsapp-integration", "technical/google-maps"]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Product catalog with search and filtering by category",
+    "Shopping cart with localStorage persistence",
+    "WhatsApp integration for orders and customer service",
+    "Calendar booking system for construction services",
+    "Real-time business hours tracking",
+    "Delivery mode toggle (pickup vs. delivery)",
+    "Responsive image carousel for project showcase",
+    "Dual-brand experience (Corralón and Construcción)"
+  ],
+  "publicApiSurface": [
+    "initCatalogAndCart() - Initialize product catalog and shopping cart",
+    "initProjectsSlider() - Initialize project showcase carousel",
+    "initCleaningCalendar() - Initialize service booking calendar",
+    "initBusinessStatus() - Check and display business hours status",
+    "renderCatalog() - Render product catalog with filters",
+    "renderCart() - Display shopping cart items",
+    "addToCart() - Add product to cart",
+    "buildWhatsappMessage() - Generate WhatsApp order message",
+    "productCategories[] - Product catalog data structure",
+    "CART_STORAGE_KEY - localStorage key for cart persistence",
+    "DELIVERY_MODE_STORAGE_KEY - localStorage key for delivery preference"
+  ]
+}
